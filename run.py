@@ -234,7 +234,7 @@ class SimScapeExporter(MatlabExpressionGenerator):
        #ipdb.set_trace()
        
        
-       print self.cond_count, type(self.cond_count)
+       print(self.cond_count, type(self.cond_count))
        cond = "cond%d" % self.cond_count
        self.cond_count +=1
        
@@ -334,11 +334,11 @@ class MetaDataVisitor(c_ast.NodeVisitor):
             name_split = e.exprs[0].value[1:-1].split(".")
             if name_split[0] == model_file_name:
               name_split = name_split[1:] 
-            print "var", name_split, e.exprs[2].value
+            print("var", name_split, e.exprs[2].value)
             metadata["variable_names"].append(".".join(name_split))
        if n.name=="s_equation_data":
           for e in n.init.exprs:
-            print "eq", e.exprs[0].value[1:-1].split(".")[1:], e.exprs[2].value
+            print("eq", e.exprs[0].value[1:-1].split(".")[1:], e.exprs[2].value)
 
 class FuncDefVisitor(c_ast.NodeVisitor):
     def visit_FuncDef(self, node):
@@ -348,7 +348,7 @@ class FuncDefVisitor(c_ast.NodeVisitor):
           name = name[len(sim_file_name)+1:]
         names = name.split("_")
         
-        print "foo", name
+        print("foo", name)
         if len(names)<=1: return
         shortname = names[-2]
                 
@@ -407,7 +407,7 @@ void foo() {
 
 
 generator = SimScapeExporter()
-print generator.visit(ast)
+print(generator.visit(ast))
 
 ast = cp.parse("""
 
@@ -425,7 +425,7 @@ void foo() {
 
 generator = SimScapeExporter()
 
-print generator.visit(ast)
+print(generator.visit(ast))
 
 
 ast = cp.parse("""
@@ -449,8 +449,7 @@ void foo() {
 
 generator = SimScapeExporter()
 
-print generator.visit(ast)
-
+print(generator.visit(ast))
 
 code_dir = model_file_name + "_grt_rtw"
 
@@ -571,4 +570,4 @@ end""".format(model_name=model_name,
 
 # check if ode model!
 
-print metadata
+print(metadata)
