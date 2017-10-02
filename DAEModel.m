@@ -89,17 +89,19 @@ classdef DAEModel
           zsol = -J\substitute(res,z,0);
           rhs = substitute(rhs,z,zsol);
           
-          out = Function('E',{x,u},{rhs});
+          out = Function('E',{x,u},{rhs},char('x','u'),char('rhs'));
         end
         function [out,xr,zr] = ode_r_expl(self)
+          import casadi.*
           [dae,xr,zr] = self.dae_r_expl();
           
           dae_in = sx_in(dae);
           z = dae_in{2};
+          u = dae_in{3};
+          x = dae_in{1};
           
           [rhs,res] = dae(dae_in{:});
           
-          keyboard
           % Check if res in linear in z
           assert(~any(cell2mat(which_depends(res, dae_in{2}, 2, false))))
           J = jacobian(res,z);
@@ -107,7 +109,7 @@ classdef DAEModel
           zsol = -J\substitute(res,z,0);
           rhs = substitute(rhs,z,zsol);
           
-          out = Function('E',{x,u},{rhs});
+          out = Function('E',{x,u},{rhs},char('x','u'),char('rhs'));
         end
         function [Fun, xr, zr] = Fr(self)
             model = Model;
