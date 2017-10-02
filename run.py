@@ -325,7 +325,7 @@ def rvalue_to_c(node):
   return generator.visit(node)
 
 
-metadata = {"variable_names": []}
+metadata = {"variable_names": [],"input_names":[],"output_names":[]}
 class MetaDataVisitor(c_ast.NodeVisitor):
 
   def visit_Decl(self, n, no_type=False):
@@ -340,6 +340,21 @@ class MetaDataVisitor(c_ast.NodeVisitor):
           for e in n.init.exprs:
             print("eq", e.exprs[0].value[1:-1].split(".")[1:], e.exprs[2].value)
 
+  def visit_Assignment(self, node):
+    try:
+      if isinstance(node.lvalue,c_ast.StructRef):
+         if node.lvalue.field.name=="mName":
+           var_name = node.rvalue.value[1:-1]
+           target = node.lvalue.name.name.name
+           i = int(node.lvalue.name.subscript.value)
+           if target=="input_info":
+             assert i==len(metadata["input_names"])
+             metadata["input_names"].append(var_name)
+           if target=="output_info":
+             assert i==len(metadata["output_names"])
+             metadata["output_names"].append(var_name)
+    except:
+      pass
 class FuncDefVisitor(c_ast.NodeVisitor):
     def visit_FuncDef(self, node):
         fields = defaultdict(list)
@@ -483,13 +498,15 @@ for k in matrices:
       nrow=sp.rows,ncol=sp.cols,colind=colind,row=row))
 
 
-map_args = {"mode":["arg_x"],"f":["arg_x"]}
+map_args = {"mode":["arg_x","arg_u"],"f":["arg_x","arg_u"]}
 
-map_label_sys = {"arg_x": "mX"}
+map_label_sys = {"arg_x": "mX","arg_u": "mU"}
 
 map_extra_body = {}
 
 constructor.append("self.variable_names = {" + str(metadata["variable_names"])[1:-1] + "};")
+constructor.append("self.input_names = {" + str(metadata["input_names"])[1:-1] + "};")
+constructor.append("self.output_names = {" + str(metadata["output_names"])[1:-1] + "};")
 
 def get_system_input_var_name(node):
   for e in node.decl.type.args.params:
@@ -511,8 +528,9 @@ for k in codes:
     methods.append(get_system_input_var_name(node)+".%s.mX = casadi.SX(" % map_label_sys[a]+ a +");\n")
   if k in ["mode","f"]:
     methods.append("  out.mX = casadi.SX.zeros(size(self.sp_a,1));")
+    methods.append("  out.mU = casadi.SX.zeros(size(self.sp_b,2));")
   if k in ["f"]:
-    methods.append("  " + get_system_input_var_name(node)+".mM.mX = self.mode(arg_x);\n")
+    methods.append("  " + get_system_input_var_name(node)+".mM.mX = self.mode(arg_x,arg_u);\n")
 
   methods+= extra_body
   methods+=c.split("\n")
@@ -524,15 +542,14 @@ for k in codes:
     methods.append("  ret = out.mX;".format(name=k))
   methods.append("end\n")
 
-import shutil
-shutil.copy(os.path.join(basepath,"DAEModel.m"), ".")
-
 with open(model_name+".m","w") as f:
   f.write("""classdef {model_name} < DAEModel
     
     properties
       {properties}
       variable_names
+      input_names
+      output_names
     end
     
     methods
@@ -541,18 +558,6 @@ with open(model_name+".m","w") as f:
         {constructor}
       end
       {methods}
-      function out = n(self)
-        out = size(self.sp_a,1);
-      end
-      function out = nz(self)
-        out = self.n - self.nx;
-      end
-      function out = nx(self)
-        out = nnz(sum(casadi.DM(self.sp_m,1),2));
-      end
-      function out = nu(self)
-        out = size(self.sp_b,2);
-      end
     end
     methods(Static)
       function r = if_else(cond,iftrue,iffalse)
@@ -571,3 +576,4 @@ end""".format(model_name=model_name,
 # check if ode model!
 
 print(metadata)
+

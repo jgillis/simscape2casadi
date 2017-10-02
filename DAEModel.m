@@ -31,6 +31,84 @@ classdef DAEModel
     methods
         function self = DAEModel()
         end
+        function out = n(self)
+          out = size(self.sp_a,1);
+        end
+        function out = ny(self)
+          out = numel(self.output_names);
+        end
+        function out = nz(self)
+          out = self.n - self.nx;
+        end
+        function out = nx(self)
+          out = nnz(sum(casadi.DM(self.sp_m,1),2));
+        end
+        function out = nu(self)
+          out = size(self.sp_b,2);
+        end
+        function out = dae_expl(self)
+          import casadi.*
+          x = SX.sym('x',self.nx);
+          z = SX.sym('z',self.nz);
+          u = SX.sym('u',self.nu);
+
+          E = self.a * [x;z] + self.b*u + self.f([x;z],u);
+          M = self.m;
+          M = M(1:self.nx,1:self.nx);
+          out = Function('E',{x,z,u},{M\E(1:self.nx),E(self.nx+1:end)});
+        end
+        function [out,xr,zr] = dae_r_expl(self)
+          import casadi.*
+          [Fun, xr, zr] = self.Fr()
+          x = SX.sym('x',self.nx);
+          z = SX.sym('z',self.nz);
+          u = SX.sym('u',self.nu);
+          
+          
+          [M,rhs] = Fun(x(xr),z(zr),u);
+          nxr = numel(xr);
+          M = M(1:nxr,1:nxr);
+
+          res = rhs(nxr+1:end);
+          rhs = rhs(1:nxr);
+          
+          out = Function('E',{x(xr),z(zr),u},{M\rhs,res});
+        end
+        function out = ode_expl(self)
+          dae = self.dae_expl();
+          
+          dae_in = sx_in(dae);
+          z = dae_in{2};
+          
+          [rhs,res] = dae(dae_in{:});
+          
+          % Check if res in linear in z
+          assert(~any(cell2mat(which_depends(res, dae_in{2}, 2, false))))
+          J = jacobian(res,z);
+
+          zsol = -J\substitute(res,z,0);
+          rhs = substitute(rhs,z,zsol);
+          
+          out = Function('E',{x,u},{rhs});
+        end
+        function [out,xr,zr] = ode_r_expl(self)
+          [dae,xr,zr] = self.dae_r_expl();
+          
+          dae_in = sx_in(dae);
+          z = dae_in{2};
+          
+          [rhs,res] = dae(dae_in{:});
+          
+          keyboard
+          % Check if res in linear in z
+          assert(~any(cell2mat(which_depends(res, dae_in{2}, 2, false))))
+          J = jacobian(res,z);
+
+          zsol = -J\substitute(res,z,0);
+          rhs = substitute(rhs,z,zsol);
+          
+          out = Function('E',{x,u},{rhs});
+        end
         function [Fun, xr, zr] = Fr(self)
             model = Model;
 
@@ -52,11 +130,12 @@ classdef DAEModel
             B = self.b;
             r = self.r';
 
-            f_expr = self.f([x;z]);
+            f_expr = self.f([x;z],u);
 
             F_struct_x = DM(sparsity(jacobian(f_expr,x)),1);
             F_struct_z = DM(sparsity(jacobian(f_expr,z)),1);
-
+            F_struct_u = DM(sparsity(jacobian(f_expr,u)),1);
+            
             f_casadis = cell(nx+nz,1);
             for i=1:nx+nz
               deps_i = find(full(F_struct_x(i,:)==1));
@@ -67,6 +146,10 @@ classdef DAEModel
               deps_i = find(full(F_struct_z(i,:)==1));
               for d=deps_i
                   deps = {deps{:} z(d)};
+              end
+              deps_i = find(full(F_struct_u(i,:)==1));
+              for d=deps_i
+                  deps = {deps{:} u(d)};
               end
               f_casadis{i} = Function('f',deps,{f_expr(i)});
             end
@@ -99,6 +182,10 @@ classdef DAEModel
               deps_i = find(full(F_struct_z(i,:)==1));
               for d=deps_i
                   deps = [deps ',z' num2str(d) '(t)'];
+              end
+              deps_i = find(full(F_struct_u(i,:)==1));
+              for d=deps_i
+                  deps = [deps ',u' num2str(d) '(t)'];
               end
               if ~is_zero(f_expr(i))
                 f{i} = sym(['f' num2str(i) '(' deps ')']);
@@ -159,6 +246,7 @@ classdef DAEModel
             u = SX.sym('u',model.nu);
 
             in1 = [x;z];
+            in2 = u;
             U1 = u;
             t = 0;
             temp
