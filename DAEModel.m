@@ -37,6 +37,9 @@ classdef DAEModel
         function out = ny(self)
           out = numel(self.output_names);
         end
+        function out = np(self)
+          out = numel(self.parameter_names);
+        end
         function out = nz(self)
           out = self.n - self.nx;
         end
@@ -63,16 +66,16 @@ classdef DAEModel
           x = SX.sym('x',self.nx);
           z = SX.sym('z',self.nz);
           u = SX.sym('u',self.nu);
+          p = SX.sym('p',self.np);
           
-          
-          [M,rhs] = Fun(x(xr),z(zr),u);
+          [M,rhs] = Fun(x(xr),z(zr),u,p);
           nxr = numel(xr);
           M = M(1:nxr,1:nxr);
 
           res = rhs(nxr+1:end);
           rhs = rhs(1:nxr);
           
-          out = Function('E',{x(xr),z(zr),u},{M\rhs,res});
+          out = Function('E',{x(xr),z(zr),u,p},{M\rhs,res},{'xr','zr','u','p'},{'ode','alg'});
         end
         function out = ode_expl(self)
           dae = self.dae_expl();
@@ -96,20 +99,21 @@ classdef DAEModel
           [dae,xr,zr] = self.dae_r_expl();
           
           dae_in = sx_in(dae);
+          x = dae_in{1};
           z = dae_in{2};
           u = dae_in{3};
-          x = dae_in{1};
+          p = dae_in{4};
           
           [rhs,res] = dae(dae_in{:});
           
           % Check if res in linear in z
-          assert(~any(cell2mat(which_depends(res, dae_in{2}, 2, false))))
+          assert(~any(cell2mat(which_depends(res, z, 2, false))))
           J = jacobian(res,z);
 
           zsol = -J\substitute(res,z,0);
           rhs = substitute(rhs,z,zsol);
           
-          out = Function('E',{x,u},{rhs},char('x','u'),char('rhs'));
+          out = Function('E',{x,u,p},{rhs},{'x','u','p'},{'rhs'});
         end
         function [Fun, xr, zr] = Fr(self)
             model = Model;
@@ -117,92 +121,45 @@ classdef DAEModel
             nx = self.nx;
             nz = self.nz;
             nu = self.nu;
+            np = self.np;
 
             import casadi.*
             x = SX.sym('x',nx);
             z = SX.sym('z',nz);
             u = SX.sym('u',nu);
+            p = SX.sym('p',np);
             t = SX.sym('t');
+            
+            pp = p;
 
-            M = self.m;
+            M = self.m(p);
 
             M = M(1:nx,1:nx);
 
-            A = self.a;
-            B = self.b;
+            A = self.a(p);
+            B = self.b(p);
 
-            f_expr = self.f([x;z],u);
+            f_expr = self.f([x;z],u,p);
 
-            F_struct_x = DM(sparsity(jacobian(f_expr,x)),1);
-            F_struct_z = DM(sparsity(jacobian(f_expr,z)),1);
-            F_struct_u = DM(sparsity(jacobian(f_expr,u)),1);
             
-            f_casadis = cell(nx+nz,1);
-            for i=1:nx+nz
-              deps_i = find(full(F_struct_x(i,:)==1));
-              deps = {t};
-              for d=deps_i
-                  deps = {deps{:} x(d)};
-              end
-              deps_i = find(full(F_struct_z(i,:)==1));
-              for d=deps_i
-                  deps = {deps{:} z(d)};
-              end
-              deps_i = find(full(F_struct_u(i,:)==1));
-              for d=deps_i
-                  deps = {deps{:} u(d)};
-              end
-              f_casadis{i} = Function('f',deps,{f_expr(i)});
-            end
-
-            syms t
-            x = cell(nx,1);
-            dx = cell(nx,1);
+            t_mupad = sym('t');
+            x_mupad = cellfun(@(e) sym([name(e) '(t)']),vertsplit(x),'uni',false);
+            dx_mupad = cell(nx,1);
             for i=1:nx
-              x{i} = sym(['x' num2str(i) '(t)']);
-              dx{i} = diff(x{i},t);
+               dx_mupad{i} = diff(x_mupad{i},t_mupad);
             end
+            z_mupad = cellfun(@(e) sym([name(e) '(t)']),vertsplit(z),'uni',false);
+            u_mupad = cellfun(@(e) sym([name(e) '(t)']),vertsplit(u),'uni',false);
+            p_mupad = cellfun(@(e) sym(name(e)),vertsplit(p),'uni',false);
 
-            z = cell(nz,1);
-            for i=1:nz
-              z{i} = sym(['z' num2str(i) '(t)']);
-            end
+            [A_mupad, fA_mupad, fA_casadi] = DAEModel.to_mupad(A, 'A');
+            [B_mupad, fB_mupad, fB_casadi] = DAEModel.to_mupad(B, 'B');
+            [M_mupad, fM_mupad, fM_casadi] = DAEModel.to_mupad(M, 'M');
+            [f_expr_mupad, fF_mupad, fF_casadi] = DAEModel.to_mupad(f_expr, 'F');
+            
+            vars = [vertcat(x_mupad{:});vertcat(z_mupad{:})];
 
-            u = cell(nu,1);
-            for i=1:nu
-              u{i} = sym(['u' num2str(i) '(t)']);
-            end
-
-            f = cell(nx+nz,1);
-            for i=1:nx+nz
-              deps_i = find(full(F_struct_x(i,:)==1));
-              deps = 't';
-              for d=deps_i
-                  deps = [deps ',x' num2str(d) '(t)'];
-              end
-              deps_i = find(full(F_struct_z(i,:)==1));
-              for d=deps_i
-                  deps = [deps ',z' num2str(d) '(t)'];
-              end
-              deps_i = find(full(F_struct_u(i,:)==1));
-              for d=deps_i
-                  deps = [deps ',u' num2str(d) '(t)'];
-              end
-              if ~is_zero(f_expr(i))
-                f{i} = sym(['f' num2str(i) '(' deps ')']);
-              else
-                f{i} = 0;
-              end
-            end
-
-
-            A = full(model.a);
-            B = full(model.b);
-            M = full(model.m);
-
-            vars = [vertcat(x{:});vertcat(z{:})];
-
-            eqs = M*[vertcat(dx{:});zeros(nz,1)]==A*vars+B*vertcat(u{:})+vertcat(f{:});
+            eqs = [M_mupad*vertcat(dx_mupad{:});zeros(nz,1)]==A_mupad*vars+B_mupad*vertcat(u_mupad{:})+f_expr_mupad;
 
             [newEqs,newVars,~] = reduceRedundancies(eqs,vars);
             size(newEqs);
@@ -212,47 +169,123 @@ classdef DAEModel
 
             [M,F] = massMatrixForm(newEqs,newVars);
 
-            Mf = matlabFunction(M);
-            M = Mf();
-
-            X = sym('x',[nx,1]);
+            X = sym('X',[nx,1]);
             Z = sym('Z',[nz,1]);
             U = sym('U',[nu,1]);
-
-            F = subs(F,[vars;vertcat(u{:})],[X;Z;U]);
+            P = sym('P',[np,1]);
+            T = sym('T',[1,1]);
+            
+            F = subs(F,[vars;vertcat(u_mupad{:});vertcat(p_mupad{:})],[X;Z;U;P]);
+            M = subs(M,[vertcat(p_mupad{:})],[P]); 
 
             newVars = subs(newVars,vars,[X;Z]);
 
             [~,xr] = find(jacobian(newVars,[X]));
             [~,zr] = find(jacobian(newVars,[Z]));
 
-            F = matlabFunction(F,'Vars',{[X;Z],U,t},'File','temp');
+            F = matlabFunction(F,'Vars',{[X;Z],U,P,t_mupad},'File','temp');
             F = fileread('temp.m');
             i = strfind(F,'%');
             F = F(i(1):end);
 
             fileID = fopen('temp.m','w');
-            for i=1:nx+nz
-              if ~is_zero(f_expr(i))
-                fprintf(fileID,'f%d=f_casadis{%d};',i,i);
-              end
+            f_mupad  = [fA_mupad;fB_mupad;fM_mupad;fF_mupad];
+            f_casadi = [fA_casadi;fB_casadi;fM_casadi;fF_casadi];
+            for i=1:length(f_mupad)
+                fprintf(fileID,'%s=f_casadi{%d};',name(f_casadi{i}),i);
             end
             
             fwrite(fileID,F);
             fclose(fileID)
             rehash
 
-            x = SX.sym('x',model.nx);
-            z = SX.sym('z',model.nz);
-            u = SX.sym('u',model.nu);
-
             in1 = [x;z];
             in2 = u;
+            in3 = p;
             U1 = u;
             t = 0;
             temp
+            
+            M = matlabFunction(M,'Vars',{P},'File','temp');
+            M = fileread('temp.m');
+            i = strfind(M,'%');
+            M = M(i(1):end);
 
-            Fun = Function('F',{x(xr),z(zr),u},{M,F},{'xr','zr','u'},{'M','F'});
+            fileID = fopen('temp.m','w');
+            for i=1:length(f_mupad)
+                fprintf(fileID,'f%d=f_casadi{%d};',i,i);
+            end
+            
+            fwrite(fileID,M);
+            fclose(fileID)
+            rehash
+            
+            in1 = p;
+            temp
+
+            Fun = Function('F',{x(xr),z(zr),u,p},{M,F},{'xr','zr','u','p'},{'M','F'});
+        end
+    end
+    methods(Static)
+        function [E_mupad, f_mupad, f_casadi] = to_mupad(E, label)
+           import casadi.*
+           args = symvar(E);
+           v = vertcat(args{:});
+           
+           Enum = full(DM(E));
+           
+           
+           
+           s = DM(sparsity(jacobian(E,v)),1);
+           N = size(s,1);
+           fcount = 1;
+           f_casadi = cell(N,1);
+           for i=1:N
+             deps = {};
+             deps_names = {};
+             deps_i = find(full(s(i,:)==1));
+             for d=deps_i
+                deps = {deps{:} v(d)};
+                deps_names = {deps_names{:} name(v(d))};
+             end
+             if ~isempty(deps_i)
+               f_casadi{fcount} = Function(['f_' label num2str(fcount)],deps,{E(i)},deps_names,{'out'});
+               fcount = fcount+1;
+             end
+           end
+
+           V_mupad = cell(N,1);
+           for i=1:numel(v)
+             V_mupad{i} = sym(name(v(i)));
+           end
+
+           E_mupad = sym(zeros(size(E)));
+
+           fcount = 1;
+           f_mupad = cell(N,1);
+           for i=1:N
+              deps_i = find(full(s(i,:)==1));
+              deps = '';
+              for d=deps_i
+                  n = name(v(d));
+                  if n(1)=='p' || n(1)=='t'
+                    deps = [deps  n ','];  
+                  else
+                    deps = [deps  n '(t),'];
+                  end
+              end
+              
+              if isempty(deps_i)
+                E_mupad(i) = Enum(i);
+              else
+                f = sym(['f_' label num2str(fcount) '(' deps(1:end-1) ')']);
+                f_mupad{fcount} = f;
+                E_mupad(i) = f;
+                fcount = fcount+1;
+              end
+            end
+            f_mupad  = f_mupad(1:fcount-1);
+            f_casadi = f_casadi(1:fcount-1);
         end
     end
     

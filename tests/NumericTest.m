@@ -1,3 +1,6 @@
+% Parametric: open global simscape settings (Home->Preferences),
+%  and tick 'show run-time parameter settings'
+
 clear all
 close all
 clc
@@ -5,18 +8,32 @@ addpath('/home/jgillis/programs/casadi/matlab_install/casadi')
 import casadi.*
 
 addpath('..')
-addpath('../models/R2014b/')
 
+% Cleanup if test folder is in a dirty state
+if exist('slprj','dir')
+  rmdir('slprj','s')
+end
+d=dir;
+for d={d.name}
+   d=d{1};
+   if ~isempty(strfind(d,'grt'))
+       rmdir(d,'s')
+   end
+end
+for model_file={%'driveline_springdamper_trivial',
+                     '../models/R2014b/driveline_springdamper',
+                     '../models/R2016b/driveline_springdamper',
+                     '../models/R2016b/driveline_springdamper_param'};
+    model_file = model_file{1};
+    [path,model_file_name,ext] = fileparts(model_file);
+    AAA =1.7;
+    BBB=10;
 
-for model_file_name={%'driveline_springdamper_trivial',
-                     'driveline_springdamper'};
-    model_file_name = model_file_name{1};
-
-    open_system(model_file_name);
+    open_system(model_file);
 
     %% Open simulink model
 
-    cs = getActiveConfigSet(model_file_name);
+    cs = getActiveConfigSet(gcs);
 
     Tend = eval(cs.get_param('StopTime'));
     Ts = 0.01;
@@ -33,8 +50,9 @@ for model_file_name={%'driveline_springdamper_trivial',
     cs.set_param('StartTime', '0.0');
     cs.set_param('FixedStep', num2str(Ts)); 
     cs.set_param('Solver', 'ode4');
-    cs.set_param('MaxDataPoints', num2str(N));
-
+    cs.set_param('LimitDataPoints', 'off');
+    cs.set_param('EnableMemcpy','off')
+    
     set_param([model_file_name '/Solver Configuration'],'UseLocalSolver','on');
     set_param([model_file_name '/Solver Configuration'],'LocalSolverSampleTime',num2str(Ts));
     set_param([model_file_name '/Solver Configuration'],'DoFixedCost','on');
@@ -69,19 +87,22 @@ for model_file_name={%'driveline_springdamper_trivial',
     nx = model.nx;
     nz = model.nz;
     nu = model.nu;
+    np = model.np;
 
     disp('Unreduced DAE')
     fprintf('#diff states %d\n', nx);
     fprintf('#algebraic states %d\n', nz);
-    fprintf('#inputs states %d\n', nu);
-
+    fprintf('#inputs %d\n', nu);
+    fprintf('#parameters %d\n', np);
+  
     %%
 
     x = SX.sym('x',nx);
     z = SX.sym('z',nz);
     u = SX.sym('u',nu);
-
-    model.f([x;z],u)
+    p = SX.sym('u',np);
+    
+    model.f([x;z],u,p)
 
 
     %% Reduce model
@@ -93,10 +114,9 @@ for model_file_name={%'driveline_springdamper_trivial',
     disp('Reduced DAE')
     fprintf('#diff states %d\n', nxr);
     fprintf('#algebraic states %d\n', nzr);
-
     %% Inspect reduced model
 
-    [Mr, rhs] = Fr(x(xr), z(zr), u);
+    [Mr, rhs] = Fr(x(xr), z(zr), u, p);
 
     g = rhs(nxr+1:end)
 
@@ -108,8 +128,11 @@ for model_file_name={%'driveline_springdamper_trivial',
 
     f_ode = Mr(1:nxr,1:nxr)\rhs(1:nxr)
 
-    zsol = dg_dz\substitute(g,z(zr),0);
-
+    if size(g,1)>0
+      zsol = dg_dz\substitute(g,z(zr),0);
+    else
+      zsol = DM.zeros(0,1);
+    end
     f_fully_explicit_ode = substitute(f_ode,z(zr),zsol)
 
     %%
@@ -132,6 +155,10 @@ for model_file_name={%'driveline_springdamper_trivial',
        values = data.series.values;
        U(i,:) = values;
     end
+    P = zeros(model.np,1);
+    for i=1:model.np
+       P(i) = eval(model.parameter_names{i});
+    end
 
     %%
     [ode_r_expl,xr,zr] = model.ode_r_expl;
@@ -143,7 +170,7 @@ for model_file_name={%'driveline_springdamper_trivial',
     FD = (X(:,2:end)-X(:,1:end-1))/dt;
 
     for i=1:numel(t)-1
-        [rhs] = ode_r_expl(X(xr,i),U(:,i));
+        [rhs] = ode_r_expl(X(xr,i),U(:,i),P);
         rhsr_model(:,i) = full(rhs);
     end
 
@@ -152,7 +179,6 @@ for model_file_name={%'driveline_springdamper_trivial',
 
     assert(max(max(abs(delta_oder)))<1e-10)
     %%
-
     close_system(model_file_name, 0);
 
     rmdir([model_file_name '_grt_rtw'],'s')

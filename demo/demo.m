@@ -2,15 +2,18 @@ clear all
 close all
 clc
 
-addpath('..')
-sdl_suspension
+!cp ../models/R2014b/driveline_springdamper.slx .
 
-model_file_name = 'sdl_suspension';
+
+addpath('..')
+driveline_springdamper
+
+model_file_name = 'driveline_springdamper';
 open_system(model_file_name);
 %double_pendulum_config
 
 %%
-model_file_name = 'sdl_flexible_shaft';
+model_file_name = 'driveline_springdamper_param';
 
 %% Open simulink model
 
@@ -31,7 +34,7 @@ cs.set_param('SystemTargetFile', 'grt.tlc');
 cs.set_param('StartTime', '0.0');
 cs.set_param('FixedStep', num2str(Ts)); 
 cs.set_param('Solver', 'ode4');
-cs.set_param('MaxDataPoints', num2str(N));
+cs.set_param('LimitDataPoints', 'off');
 
 set_param([model_file_name '/Solver Configuration'],'UseLocalSolver','on');
 set_param([model_file_name '/Solver Configuration'],'LocalSolverSampleTime',num2str(Ts));

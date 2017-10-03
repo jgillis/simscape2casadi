@@ -325,7 +325,7 @@ def rvalue_to_c(node):
   return generator.visit(node)
 
 
-metadata = {"variable_names": [],"input_names":[],"output_names":[]}
+metadata = {"variable_names": [],"input_names":[],"output_names":[],"parameter_names":[]}
 class MetaDataVisitor(c_ast.NodeVisitor):
 
   def visit_Decl(self, n, no_type=False):
@@ -336,6 +336,12 @@ class MetaDataVisitor(c_ast.NodeVisitor):
               name_split = name_split[1:] 
             print("var", name_split, e.exprs[2].value)
             metadata["variable_names"].append(".".join(name_split))
+       if n.name=="s_real_parameter_data":
+          if isinstance(n.init,c_ast.ID): # Skip when NULL
+            return
+          for e in n.init.exprs:
+            name = e.exprs[0].value[1:-1]
+            metadata["parameter_names"].append(name)
        if n.name=="s_equation_data":
           for e in n.init.exprs:
             print("eq", e.exprs[0].value[1:-1].split(".")[1:], e.exprs[2].value)
@@ -469,6 +475,7 @@ print(generator.visit(ast))
 code_dir = model_file_name + "_grt_rtw"
 
 import glob
+print(code_dir,model_file_name,glob.glob(code_dir+"/"+model_file_name+"_*_ds.c"))
 ds_file = glob.glob(code_dir+"/"+model_file_name+"_*_ds.c")[0].split("/")[1]
 sim_file_name = ds_file[:-5]
 
@@ -498,12 +505,13 @@ for k in matrices:
       nrow=sp.rows,ncol=sp.cols,colind=colind,row=row))
 
 
-map_args = {"mode":["arg_x","arg_u"],"f":["arg_x","arg_u"]}
-
-map_label_sys = {"arg_x": "mX","arg_u": "mU"}
+map_args = {"mode":["arg_x","arg_u","args_p"],"f":["arg_x","arg_u","args_p"]}
+map_args_default = ["args_p"]
+map_label_sys = {"arg_x": "mX","arg_u": "mU","args_p":"mDP_R"}
 
 map_extra_body = {}
 
+constructor.append("self.parameter_names = {" + str(metadata["parameter_names"])[1:-1] + "};")
 constructor.append("self.variable_names = {" + str(metadata["variable_names"])[1:-1] + "};")
 constructor.append("self.input_names = {" + str(metadata["input_names"])[1:-1] + "};")
 constructor.append("self.output_names = {" + str(metadata["output_names"])[1:-1] + "};")
@@ -520,7 +528,7 @@ for k in codes:
   c = codes[k]
   node = codes_nodes[k]
   
-  args = map_args.get(k,[])
+  args = map_args.get(k,map_args_default)
   extra_body = map_extra_body.get(k,[])
     
   methods.append("function ret = {name}({args})\n".format(name=k,args=",".join(["self"]+args)))
@@ -530,14 +538,15 @@ for k in codes:
     methods.append("  out.mX = casadi.SX.zeros(size(self.sp_a,1));")
     methods.append("  out.mU = casadi.SX.zeros(size(self.sp_b,2));")
   if k in ["f"]:
-    methods.append("  " + get_system_input_var_name(node)+".mM.mX = self.mode(arg_x,arg_u);\n")
+    methods.append("  " + get_system_input_var_name(node)+".mM.mX = self.mode("+ ",".join(map_args["mode"])+");\n")
 
+  if k in matrices:
+    methods.append("  out.mX = casadi.SX.zeros(nnz(self.sp_"+ k+ "),1);")
+ 
   methods+= extra_body
   methods+=c.split("\n")
-  
   if k in matrices:
-    
-    methods.append("  ret = casadi.DM(self.sp_{name},out.mX);".format(name=k))
+    methods.append("  ret = casadi.SX(self.sp_{name},out.mX);".format(name=k))
   else:
     methods.append("  ret = out.mX;".format(name=k))
   methods.append("end\n")
@@ -550,6 +559,7 @@ with open(model_name+".m","w") as f:
       variable_names
       input_names
       output_names
+      parameter_names
     end
     
     methods
