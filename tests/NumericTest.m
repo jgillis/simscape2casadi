@@ -7,6 +7,10 @@ clc
 addpath('/home/jgillis/programs/casadi/matlab_install/casadi')
 import casadi.*
 
+
+warning('off','symbolic:sym:sym:DeprecateExpressions')
+warning('off','symbolic:generate:FunctionNotVerifiedToBeValid')
+warning('off','physmod:simscape:compiler:sli:logging:CodeGenNotSupported')
 addpath('..')
 
 % Cleanup if test folder is in a dirty state
@@ -20,18 +24,21 @@ for d={d.name}
        rmdir(d,'s')
    end
 end
-for model_file={%'driveline_springdamper_trivial',
-                     '../models/R2014b/driveline_springdamper',
-                     '../models/R2016b/driveline_springdamper',
-                     '../models/R2016b/driveline_springdamper_param'};
-    model_file = model_file{1};
+
+models = {'../models/R2014b/driveline_springdamper',...
+          '../models/R2016b/driveline_springdamper',...
+          '../models/R2016b/driveline_springdamper_param'};
+
+for model_file_c=models
+    model_file = model_file_c{1};
+    disp(['model: ' model_file])
     [path,model_file_name,ext] = fileparts(model_file);
     AAA =1.7;
     BBB=10;
 
     open_system(model_file);
 
-    %% Open simulink model
+    % Open simulink model
 
     cs = getActiveConfigSet(gcs);
 
@@ -72,16 +79,15 @@ for model_file={%'driveline_springdamper_trivial',
     assert(all(diff(dt)==dt));
 
 
-    %% Run conversion script
+    % Run conversion script
 
     rtwbuild(model_file_name)
-    %%
     out = system(['python ../run.py ' model_file_name]);
     assert(out==0);
 
     rehash
 
-    %%
+    %
     model = Model;
 
     nx = model.nx;
@@ -95,7 +101,7 @@ for model_file={%'driveline_springdamper_trivial',
     fprintf('#inputs %d\n', nu);
     fprintf('#parameters %d\n', np);
   
-    %%
+    %
 
     x = SX.sym('x',nx);
     z = SX.sym('z',nz);
@@ -104,8 +110,7 @@ for model_file={%'driveline_springdamper_trivial',
     
     model.f([x;z],u,p)
 
-
-    %% Reduce model
+    % Reduce model
     [Fr,xr,zr] = model.Fr;
 
     nxr = numel(xr);
@@ -114,7 +119,7 @@ for model_file={%'driveline_springdamper_trivial',
     disp('Reduced DAE')
     fprintf('#diff states %d\n', nxr);
     fprintf('#algebraic states %d\n', nzr);
-    %% Inspect reduced model
+    % Inspect reduced model
 
     [Mr, rhs] = Fr(x(xr), z(zr), u, p);
 
@@ -124,7 +129,7 @@ for model_file={%'driveline_springdamper_trivial',
 
     jacobian(dg_dz,z(zr))
 
-    %% Create ODE model
+    % Create ODE model
 
     f_ode = Mr(1:nxr,1:nxr)\rhs(1:nxr)
 
@@ -135,7 +140,7 @@ for model_file={%'driveline_springdamper_trivial',
     end
     f_fully_explicit_ode = substitute(f_ode,z(zr),zsol)
 
-    %%
+    %
     X = zeros(nx,numel(t));
     for i=1:nx
        data = eval(['simlog.' model.variable_names{i}]);
@@ -160,7 +165,6 @@ for model_file={%'driveline_springdamper_trivial',
        P(i) = eval(model.parameter_names{i});
     end
 
-    %%
     [ode_r_expl,xr,zr] = model.ode_r_expl;
     nxr = numel(xr);
     nzr = numel(zr);
@@ -178,7 +182,7 @@ for model_file={%'driveline_springdamper_trivial',
 
 
     assert(max(max(abs(delta_oder)))<1e-10)
-    %%
+    %
     close_system(model_file_name, 0);
 
     rmdir([model_file_name '_grt_rtw'],'s')
