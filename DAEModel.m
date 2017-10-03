@@ -62,7 +62,7 @@ classdef DAEModel
         end
         function [out,xr,zr] = dae_r_expl(self)
           import casadi.*
-          [Fun, xr, zr] = self.Fr()
+          [Fun, xr, zr] = self.Fr();
           x = SX.sym('x',self.nx);
           z = SX.sym('z',self.nz);
           u = SX.sym('u',self.nu);

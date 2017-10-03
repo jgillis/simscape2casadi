@@ -36,7 +36,7 @@ for model_file_c=models
     AAA =1.7;
     BBB=10;
 
-    open_system(model_file);
+    load_system(model_file);
 
     % Open simulink model
 
@@ -59,6 +59,7 @@ for model_file_c=models
     cs.set_param('Solver', 'ode4');
     cs.set_param('LimitDataPoints', 'off');
     cs.set_param('EnableMemcpy','off')
+    cs.set_param('RTWVerbose','off');
     
     set_param([model_file_name '/Solver Configuration'],'UseLocalSolver','on');
     set_param([model_file_name '/Solver Configuration'],'LocalSolverSampleTime',num2str(Ts));
@@ -80,8 +81,9 @@ for model_file_c=models
 
 
     % Run conversion script
-
+    disp('codegen')
     rtwbuild(model_file_name)
+    disp('simscape2casadi')
     out = system(['python ../run.py ' model_file_name]);
     assert(out==0);
 
@@ -100,9 +102,7 @@ for model_file_c=models
     fprintf('#algebraic states %d\n', nz);
     fprintf('#inputs %d\n', nu);
     fprintf('#parameters %d\n', np);
-  
-    %
-
+    
     x = SX.sym('x',nx);
     z = SX.sym('z',nz);
     u = SX.sym('u',nu);
@@ -111,6 +111,7 @@ for model_file_c=models
     model.f([x;z],u,p)
 
     % Reduce model
+    disp('reduce DAE')
     [Fr,xr,zr] = model.Fr;
 
     nxr = numel(xr);
@@ -119,27 +120,6 @@ for model_file_c=models
     disp('Reduced DAE')
     fprintf('#diff states %d\n', nxr);
     fprintf('#algebraic states %d\n', nzr);
-    % Inspect reduced model
-
-    [Mr, rhs] = Fr(x(xr), z(zr), u, p);
-
-    g = rhs(nxr+1:end)
-
-    dg_dz = jacobian(g,z(zr))
-
-    jacobian(dg_dz,z(zr))
-
-    % Create ODE model
-
-    f_ode = Mr(1:nxr,1:nxr)\rhs(1:nxr)
-
-    if size(g,1)>0
-      zsol = dg_dz\substitute(g,z(zr),0);
-    else
-      zsol = DM.zeros(0,1);
-    end
-    f_fully_explicit_ode = substitute(f_ode,z(zr),zsol)
-
     %
     X = zeros(nx,numel(t));
     for i=1:nx

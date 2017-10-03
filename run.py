@@ -217,7 +217,7 @@ class SimScapeExporter(MatlabExpressionGenerator):
        assert isinstance(node.next,c_ast.UnaryOp)
        assert node.next.op=='p++'
        
-       node.stmt.show()
+       #node.stmt.show()
        s += self._make_indent() + self.visit(node.next.expr) + "=" + self.visit(node.next.expr) + "+1;\n"
        self.indent_level -= 2
        s += self._make_indent() + "end" + "\n"
@@ -234,7 +234,7 @@ class SimScapeExporter(MatlabExpressionGenerator):
        #ipdb.set_trace()
        
        
-       print(self.cond_count, type(self.cond_count))
+       #print(self.cond_count, type(self.cond_count))
        cond = "cond%d" % self.cond_count
        self.cond_count +=1
        
@@ -334,7 +334,7 @@ class MetaDataVisitor(c_ast.NodeVisitor):
             name_split = e.exprs[0].value[1:-1].split(".")
             if name_split[0] == model_file_name:
               name_split = name_split[1:] 
-            print("var", name_split, e.exprs[2].value)
+            #print("var", name_split, e.exprs[2].value)
             metadata["variable_names"].append(".".join(name_split))
        if n.name=="s_real_parameter_data":
           if isinstance(n.init,c_ast.ID): # Skip when NULL
@@ -344,7 +344,7 @@ class MetaDataVisitor(c_ast.NodeVisitor):
             metadata["parameter_names"].append(name)
        if n.name=="s_equation_data":
           for e in n.init.exprs:
-            print("eq", e.exprs[0].value[1:-1].split(".")[1:], e.exprs[2].value)
+            pass #print("eq", e.exprs[0].value[1:-1].split(".")[1:], e.exprs[2].value)
 
   def visit_Assignment(self, node):
     try:
@@ -369,7 +369,6 @@ class FuncDefVisitor(c_ast.NodeVisitor):
           name = name[len(sim_file_name)+1:]
         names = name.split("_")
         
-        print("foo", name)
         if len(names)<=1: return
         shortname = names[-2]
                 
@@ -402,80 +401,16 @@ class FuncDefVisitor(c_ast.NodeVisitor):
           generator = SimScapeExporter(type=type)
           c = codes[n] = generator.visit(node.body)
           codes_nodes[n] = node
-          node.show()
+          #node.show()
           
             
-        print('%s at %s' % (name, node.decl.coord))
+        #print('%s at %s' % (name, node.decl.coord))
 
-
-cp = CParser()
-ast = cp.parse("""
-
-void foo() {
-  double x;
-  double y;
-  double z;
-
-  if (cond0) {
-    x = 1;
-    y = 2;
-  } else {
-    x = 3;
-    z = 4;
-  }
-}
-""","foo.c")
-
-
-generator = SimScapeExporter()
-print(generator.visit(ast))
-
-ast = cp.parse("""
-
-void foo() {
-  double x;
-  double y;
-  double z;
-
-  if (cond0) {
-    x = 1;
-    y = 2;
-  }
-}
-""","foo.c")
-
-generator = SimScapeExporter()
-
-print(generator.visit(ast))
-
-
-ast = cp.parse("""
-
-void foo() {
-  double x;
-  double y;
-  double z;
-
-  if (cond0) {
-    x = 1;
-    y = 2;
-  } else {
-    if (cond1) {
-      x = 7;
-    }
-    z = 4;
-  }
-}
-""","foo.c")
-
-generator = SimScapeExporter()
-
-print(generator.visit(ast))
 
 code_dir = model_file_name + "_grt_rtw"
 
 import glob
-print(code_dir,model_file_name,glob.glob(code_dir+"/"+model_file_name+"_*_ds.c"))
+
 ds_file = glob.glob(code_dir+"/"+model_file_name+"_*_ds.c")[0].split("/")[1]
 sim_file_name = ds_file[:-5]
 
@@ -585,5 +520,5 @@ end""".format(model_name=model_name,
 
 # check if ode model!
 
-print(metadata)
+#print(metadata)
 
