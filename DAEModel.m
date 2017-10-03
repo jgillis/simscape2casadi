@@ -130,7 +130,6 @@ classdef DAEModel
 
             A = self.a;
             B = self.b;
-            r = self.r';
 
             f_expr = self.f([x;z],u);
 
@@ -253,7 +252,7 @@ classdef DAEModel
             t = 0;
             temp
 
-            Fun = Function('F',{x(xr),z(zr),u},{M,F});
+            Fun = Function('F',{x(xr),z(zr),u},{M,F},{'xr','zr','u'},{'M','F'});
         end
     end
     
