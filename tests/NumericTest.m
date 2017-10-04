@@ -171,6 +171,10 @@ for model_file_c=models
 
 
     assert(max(max(abs(delta_oder)))<1e-10)
+    
+    
+    model.ode_expl
+    model.dae_expl
     %
     close_system(model_file_name, 0);
 

@@ -54,11 +54,13 @@ classdef DAEModel
           x = SX.sym('x',self.nx);
           z = SX.sym('z',self.nz);
           u = SX.sym('u',self.nu);
+          p = SX.sym('p',self.np);
+          t = SX.sym('t');
 
-          E = self.a * [x;z] + self.b*u + self.f([x;z],u);
-          M = self.m;
+          E = self.a(p) * [x;z] + self.b(p)*u + self.f([x;z],u,p,t);
+          M = self.m(p);
           M = M(1:self.nx,1:self.nx);
-          out = Function('E',{x,z,u},{M\E(1:self.nx),E(self.nx+1:end)});
+          out = Function('E',{x,z,u,p,t},{M\E(1:self.nx),E(self.nx+1:end)},{'x','z','u','p','t'},{'ode','alg'});
         end
         function [out,xr,zr] = dae_r_expl(self)
           import casadi.*
@@ -79,21 +81,27 @@ classdef DAEModel
           out = Function('E',{x(xr),z(zr),u,p,t},{M\rhs,res},{'xr','zr','u','p','t'},{'ode','alg'});
         end
         function out = ode_expl(self)
+          import casadi.*
           dae = self.dae_expl();
           
           dae_in = sx_in(dae);
+          x = dae_in{1};
           z = dae_in{2};
-          
+          u = dae_in{3};
+          p = dae_in{4};
+          t = dae_in{5};
           [rhs,res] = dae(dae_in{:});
           
           % Check if res in linear in z
-          assert(~any(cell2mat(which_depends(res, dae_in{2}, 2, false))))
+          assert(~any(cell2mat(which_depends(res, z, 2, false))))
           J = jacobian(res,z);
+          
+          res
 
           zsol = -J\substitute(res,z,0);
           rhs = substitute(rhs,z,zsol);
           
-          out = Function('E',{x,u},{rhs},char('x','u'),char('rhs'));
+          out = Function('E',{x,u,p,t},{rhs},char('x','u','p','t'),char('rhs'));
         end
         function [out,xr,zr] = ode_r_expl(self)
           import casadi.*
