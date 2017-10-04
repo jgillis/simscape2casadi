@@ -414,8 +414,19 @@ import glob
 ds_file = glob.glob(code_dir+"/"+model_file_name+"_*_ds.c")[0].split("/")[1]
 sim_file_name = ds_file[:-5]
 
+ds_file_pre = os.path.join(code_dir,ds_file[:-2]+"_preprocessed.c")
+
+with open(ds_file_pre,"w") as f_out:
+  with open(os.path.join(code_dir, ds_file),"r") as f_in:
+    for l in f_in.readlines():
+      if l.startswith("#include") and sim_file_name+"_" in l:
+        mod_l = l.replace(".h",".c")
+        if os.path.exists(os.path.join(code_dir,mod_l.split('"')[1])):
+          l = mod_l
+      f_out.write(l)
+
 cpp_args=["-I" + basepath + "/include"]
-ast = parse_file(os.path.join(code_dir, ds_file), use_cpp=True, cpp_args=cpp_args)
+ast = parse_file(ds_file_pre, use_cpp=True, cpp_args=cpp_args)
 
 v = FuncDefVisitor()
 v.visit(ast)
