@@ -32,6 +32,7 @@ models = {...
           '../models/R2016b/driveline_springdamper_gearbox',...
           '../models/R2016b/driveline_springdamper_timedep'};
           %'../models/R2016b/driveline_springdamper_clutch'};%,...
+          %'../models/R2016b/driveline_springdamper_backlash'};%,...
           %'../models/R2016b/proprietary/FM/DCT_v_0_1'};%,...
           %'../models/R2016b/driveline_springdamper_LUT'};
 
@@ -140,12 +141,12 @@ for model_file_c=models
        values = data.series.values;
        X(i,:) = values;
     end
-    %Z = zeros(nz,numel(t));
-    %for i=1:nz
-    %   data = eval(['simlog.' model.variable_names{nx+i}]);
-    %   values = data.series.values;
-    %   Z(i,:) = values;
-    %end
+    Z = zeros(nz,numel(ts));
+    for i=1:nz
+       data = eval(['simlog.' model.variable_names{nx+i}]);
+       values = data.series.values;
+       Z(i,:) = values;
+    end
     % Control vector
     U = zeros(model.nu,numel(ts));
     for i=1:model.nu
@@ -173,13 +174,48 @@ for model_file_c=models
 
     % trapezoidal
     % delta_oder = FD(xr,1:end-1)-full((rhsr_model(:,1:end-1)+rhsr_model(:,2:end))/2);
-    delta_oder = FD(xr,1:end-1)-full(rhsr_model(:,2:end));
+    delta_oder = FD(xr,1:end-1)-rhsr_model(:,2:end);
 
     assert(max(max(abs(delta_oder)))<1e-10)
     
     
+    
+    dae_expl = model.dae_expl;
+
+    [dae_r_expl,xr,zr] = model.dae_r_expl;
+
+    delta_dae = zeros(model.nz,numel(ts)-1);
+    delta_daer = zeros(nzr,numel(ts)-1);
+
+    rhs_model = zeros(nx,numel(ts)-1);
+    rhsr_model = zeros(nxr,numel(ts)-1);
+
+    FD = (X(:,2:end)-X(:,1:end-1))/dt;
+
+    for i=1:numel(ts)-1
+        [rhs,res] = dae_expl(X(:,i),Z(:,i),U(:,i),P,ts(i));
+        delta_dae(:,i) = full(res);
+        rhs_model(:,i) = full(rhs);
+
+
+        [rhs,res] = dae_r_expl(X(xr,i),Z(zr,i),U(:,i),P,ts(i));
+        delta_daer(:,i) = full(res);
+        rhsr_model(:,i) = full(rhs);
+    end
+
+    if ~isempty(delta_dae)
+      assert(max(max(abs(delta_dae)))<1e-10)
+    end
+    if ~isempty(delta_daer)
+      assert(max(max(abs(delta_daer)))<1e-10)
+    end
+    delta_ode = FD(:,1:end-1)-rhs_model(:,2:end);
+    delta_oder = FD(:,1:end-1)-rhsr_model(:,2:end);
+    
+    assert(max(max(abs(delta_ode)))<1e-10)
+    assert(max(max(abs(delta_oder)))<1e-10)
+    
     model.ode_expl
-    model.dae_expl
     %
     close_system(model_file_name, 0);
 
