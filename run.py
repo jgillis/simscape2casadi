@@ -199,7 +199,11 @@ class MatlabExpressionGenerator(CommonExpressionGenerator):
       if len(node.op)==2 and node.op.endswith("="):
         return '%s = %s %s (%s)' % (self.visit(node.lvalue), self.visit(node.lvalue), node.op[0], rval_str)
       else:
-        return '%s %s %s' % (self.visit(node.lvalue), node.op, rval_str)
+        lval_str = self.visit(node.lvalue)
+        if "(void *)" in to_c(node.rvalue):
+          lval_str = lval_str.replace("(","{")
+          lval_str = lval_str.replace(")","}")
+        return '%s %s %s' % (lval_str, node.op, rval_str)
 
 class SimScapeExporter(MatlabExpressionGenerator):
   def __init__(self,*args,**kwargs):
@@ -218,7 +222,14 @@ class SimScapeExporter(MatlabExpressionGenerator):
       del kwargs["type"]
     self.parent_compound = None
     MatlabExpressionGenerator.__init__(self,*args,**kwargs)
-    
+
+  def visit_FuncCall(self, n):
+    if "tlu2_1d_linear_linear_value"==to_c(n.name):
+        fref = self._parenthesize_unless_simple(n.name)
+        return self.visit(n.args.exprs[0]) + " = " + "self." + fref + '(' + self.visit(n.args.exprs[1]) + ')'
+    else:
+      return MatlabExpressionGenerator.visit_FuncCall(self, n)
+
   def visit_Assignment(self, node):
     if node.lvalue.name=="out": return "% " + MatlabExpressionGenerator.visit_Assignment(self, node)
     self.lvalues.append(self.visit(node.lvalue))
@@ -521,7 +532,7 @@ for k in codes:
   methods.append("end\n")
 
 with open(model_name+".m","w") as f:
-  f.write("""classdef {model_name} < DAEModel
+  f.write("""classdef {model_name} < DAEModel & SimscapeCasadi
     
     properties
       {properties}
@@ -537,14 +548,6 @@ with open(model_name+".m","w") as f:
         {constructor}
       end
       {methods}
-    end
-    methods(Static)
-      function r = if_else(cond,iftrue,iffalse)
-        if islogical(cond)
-          cond = double(cond);  
-        end
-        r = if_else(casadi.SX(cond),iftrue,iffalse);
-      end
     end
     
 end""".format(model_name=model_name,
