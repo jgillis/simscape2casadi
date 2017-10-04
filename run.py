@@ -131,6 +131,10 @@ code_names = ["m","a","b","y","dxy","f","tduf","tdxf","r","mode"]
       
 """
 
+generator = c_generator.CGenerator()
+def to_c(node):
+  return generator.visit(node)
+
 def from_constant(n):
      if n.value.endswith("UL"):
        return n.value[:-2]
@@ -310,7 +314,13 @@ class SimScapeExporter(MatlabExpressionGenerator):
        if self.type=="SX":
          try:
            size = n.type.dim.value
-           return self.to_matlab_name(n.name) + " = casadi.SX.zeros(%s,1)" % size
+           dtype = "casadi.SX.zeros"
+           try:
+             if to_c(n.type.type)=="void":
+               dtype = "cell"
+           except:
+             pass
+           return self.to_matlab_name(n.name) + " = %s(%s,1)" % (dtype,size)
          except:
            pass
 
