@@ -73,7 +73,11 @@ for model_file_c=models
     set_param([model_file_name '/Solver Configuration'],'LocalSolverSampleTime',num2str(Ts));
     set_param([model_file_name '/Solver Configuration'],'DoFixedCost','on');
     set_param([model_file_name '/Solver Configuration'],'MaxNonlinIter','10');
-    set_param([model_file_name '/Solver Configuration'],'LocalSolverChoice','NE_TRAPEZOIDAL_ADVANCER');
+    
+    % According to Simscape documentation, backward Euler is activated at
+    % the initial time, and at discrete changes
+    %set_param([model_file_name '/Solver Configuration'],'LocalSolverChoice','NE_TRAPEZOIDAL_ADVANCER');
+    set_param([model_file_name '/Solver Configuration'],'LocalSolverChoice','NE_BACKWARD_EULER_ADVANCER');
     set_param([model_file_name '/Solver Configuration'],'ResidualTolerance','1e-9');
 
     simOut = sim(model_file_name,cs);
@@ -167,8 +171,9 @@ for model_file_c=models
         rhsr_model(:,i) = full(rhs);
     end
 
-    delta_oder = FD(xr,1:end-1)-full((rhsr_model(:,1:end-1)+rhsr_model(:,2:end))/2);
-
+    % trapezoidal
+    % delta_oder = FD(xr,1:end-1)-full((rhsr_model(:,1:end-1)+rhsr_model(:,2:end))/2);
+    delta_oder = FD(xr,1:end-1)-full(rhsr_model(:,2:end));
 
     assert(max(max(abs(delta_oder)))<1e-10)
     

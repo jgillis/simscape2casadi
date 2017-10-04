@@ -453,7 +453,7 @@ ds_file_pre = os.path.join(code_dir,ds_file[:-2]+"_preprocessed.c")
 with open(ds_file_pre,"w") as f_out:
   with open(os.path.join(code_dir, ds_file),"r") as f_in:
     for l in f_in.readlines():
-      if l.startswith("#include") and sim_file_name+"_" in l:
+      if l.startswith("#include") and sim_file_name+"_" in l and "ds.h" not in l:
         mod_l = l.replace(".h",".c")
         if os.path.exists(os.path.join(code_dir,mod_l.split('"')[1])):
           l = mod_l
