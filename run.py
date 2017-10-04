@@ -156,6 +156,9 @@ class MatlabExpressionGenerator(CommonExpressionGenerator):
       return sref + "." + self.visit(n.field)
 
   def visit_UnaryOp(self, n):
+    operand = self._parenthesize_unless_simple(n.expr)
+    if n.op=="&":
+      return operand
     if n.op == '!':
       return '~' + operand
     else:
