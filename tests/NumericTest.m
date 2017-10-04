@@ -25,9 +25,15 @@ for d={d.name}
    end
 end
 
-models = {'../models/R2014b/driveline_springdamper',...
+models = {...
+          '../models/R2014b/driveline_springdamper',...
           '../models/R2016b/driveline_springdamper',...
-          '../models/R2016b/driveline_springdamper_param'};
+          '../models/R2016b/driveline_springdamper_param',...
+          '../models/R2016b/driveline_springdamper_gearbox',...
+          '../models/R2016b/driveline_springdamper_timedep'};
+          %'../models/R2016b/driveline_springdamper_clutch'};%,...
+          %'../models/R2016b/proprietary/FM/DCT_v_0_1'};%,...
+          %'../models/R2016b/driveline_springdamper_LUT'};
 
 for model_file_c=models
     model_file = model_file_c{1};
@@ -74,11 +80,11 @@ for model_file_c=models
 
     simlog = simOut.get('simlog');
 
-    t = simOut.get('tout');
-    if t(1)~=0
-       t = [0;t]; 
+    ts = simOut.get('tout');
+    if ts(1)~=0
+       ts = [0;ts]; 
     end
-    dt = t(2)-t(1);
+    dt = ts(2)-ts(1);
     assert(all(diff(dt)==dt));
 
 
@@ -109,8 +115,9 @@ for model_file_c=models
     z = SX.sym('z',nz);
     u = SX.sym('u',nu);
     p = SX.sym('u',np);
+    t = SX.sym('t');
     
-    model.f([x;z],u,p)
+    model.f([x;z],u,p,t)
 
     % Reduce model
     disp('reduce DAE')
@@ -123,7 +130,7 @@ for model_file_c=models
     fprintf('#diff states %d\n', nxr);
     fprintf('#algebraic states %d\n', nzr);
     %
-    X = zeros(nx,numel(t));
+    X = zeros(nx,numel(ts));
     for i=1:nx
        data = eval(['simlog.' model.variable_names{i}]);
        values = data.series.values;
@@ -136,7 +143,7 @@ for model_file_c=models
     %   Z(i,:) = values;
     %end
     % Control vector
-    U = zeros(model.nu,numel(t));
+    U = zeros(model.nu,numel(ts));
     for i=1:model.nu
        data = eval(['simlog.' model.input_names{i}]);
        values = data.series.values;
@@ -151,12 +158,12 @@ for model_file_c=models
     nxr = numel(xr);
     nzr = numel(zr);
 
-    rhsr_model = zeros(nxr,numel(t)-1);
+    rhsr_model = zeros(nxr,numel(ts)-1);
 
     FD = (X(:,2:end)-X(:,1:end-1))/dt;
 
-    for i=1:numel(t)-1
-        [rhs] = ode_r_expl(X(xr,i),U(:,i),P);
+    for i=1:numel(ts)-1
+        [rhs] = ode_r_expl(X(xr,i),U(:,i),P,ts(i));
         rhsr_model(:,i) = full(rhs);
     end
 

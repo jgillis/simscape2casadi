@@ -67,15 +67,16 @@ classdef DAEModel
           z = SX.sym('z',self.nz);
           u = SX.sym('u',self.nu);
           p = SX.sym('p',self.np);
+          t = SX.sym('t');
           
-          [M,rhs] = Fun(x(xr),z(zr),u,p);
+          [M,rhs] = Fun(x(xr),z(zr),u,p,t);
           nxr = numel(xr);
           M = M(1:nxr,1:nxr);
 
           res = rhs(nxr+1:end);
           rhs = rhs(1:nxr);
           
-          out = Function('E',{x(xr),z(zr),u,p},{M\rhs,res},{'xr','zr','u','p'},{'ode','alg'});
+          out = Function('E',{x(xr),z(zr),u,p,t},{M\rhs,res},{'xr','zr','u','p','t'},{'ode','alg'});
         end
         function out = ode_expl(self)
           dae = self.dae_expl();
@@ -103,6 +104,7 @@ classdef DAEModel
           z = dae_in{2};
           u = dae_in{3};
           p = dae_in{4};
+          t = dae_in{5};
           
           [rhs,res] = dae(dae_in{:});
           
@@ -113,7 +115,7 @@ classdef DAEModel
           zsol = -J\substitute(res,z,0);
           rhs = substitute(rhs,z,zsol);
           
-          out = Function('E',{x,u,p},{rhs},{'x','u','p'},{'rhs'});
+          out = Function('E',{x,u,p,t},{rhs},{'x','u','p','t'},{'rhs'});
         end
         function [Fun, xr, zr] = Fr(self)
             model = Model;
@@ -139,7 +141,7 @@ classdef DAEModel
             A = self.a(p);
             B = self.b(p);
 
-            f_expr = self.f([x;z],u,p);
+            f_expr = self.f([x;z],u,p,t);
 
             
             t_mupad = sym('t');
@@ -200,10 +202,8 @@ classdef DAEModel
             rehash
 
             in1 = [x;z];
-            in2 = u;
             in3 = p;
             U1 = u;
-            t = 0;
             temp
             
             M = matlabFunction(M,'Vars',{P},'File','temp');
@@ -223,7 +223,7 @@ classdef DAEModel
             in1 = p;
             temp
 
-            Fun = Function('F',{x(xr),z(zr),u,p},{M,F},{'xr','zr','u','p'},{'M','F'});
+            Fun = Function('F',{x(xr),z(zr),u,p,t},{M,F},{'xr','zr','u','p','t'},{'M','F'});
         end
     end
     methods(Static)
