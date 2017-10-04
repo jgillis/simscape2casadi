@@ -151,11 +151,21 @@ class MatlabExpressionGenerator(CommonExpressionGenerator):
       sref = self._parenthesize_unless_simple(n.name)
       return sref + "." + self.visit(n.field)
 
-  def visit_Unary(self, n):
+  def visit_UnaryOp(self, n):
     if n.op == '!':
       return '~' + operand
     else:
-      return MatlabExpressionGenerator.visit_Unary(self, n)
+      return CommonExpressionGenerator.visit_UnaryOp(self, n)
+
+  def visit_BinaryOp(self, n):
+    if n.op == '!=':
+        lval_str = self._parenthesize_if(n.left,
+                            lambda d: not self._is_simple_node(d))
+        rval_str = self._parenthesize_if(n.right,
+                            lambda d: not self._is_simple_node(d))
+        return '%s %s %s' % (lval_str, "~=", rval_str)
+    else:
+      return CommonExpressionGenerator.visit_BinaryOp(self, n)
 
   def visit_ID(self, n):
       return self.to_matlab_name(n.name)
