@@ -33,8 +33,10 @@ for model_file_c=models
     model_file = model_file_c{1};
     disp(['model: ' model_file])
     [path,model_file_name,ext] = fileparts(model_file);
-    AAA =1.7;
-    BBB=10;
+    
+    if exist([model_file '_config.m'])
+        run([model_file '_config.m'])
+    end
 
     load_system(model_file);
 
