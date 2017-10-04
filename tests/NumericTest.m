@@ -30,9 +30,9 @@ models = {...
           '../models/R2016b/driveline_springdamper',...
           '../models/R2016b/driveline_springdamper_param',...
           '../models/R2016b/driveline_springdamper_gearbox',...
-          '../models/R2016b/driveline_springdamper_timedep'};
+          '../models/R2016b/driveline_springdamper_timedep',...
+          '../models/R2016b/driveline_springdamper_backlash'};%,...
           %'../models/R2016b/driveline_springdamper_clutch'};%,...
-          %'../models/R2016b/driveline_springdamper_backlash'};%,...
           %'../models/R2016b/proprietary/FM/DCT_v_0_1'};%,...
           %'../models/R2016b/driveline_springdamper_LUT'};
 
@@ -159,27 +159,7 @@ for model_file_c=models
        P(i) = eval(model.parameter_names{i});
     end
 
-    [ode_r_expl,xr,zr] = model.ode_r_expl;
-    nxr = numel(xr);
-    nzr = numel(zr);
 
-    rhsr_model = zeros(nxr,numel(ts)-1);
-
-    FD = (X(:,2:end)-X(:,1:end-1))/dt;
-
-    for i=1:numel(ts)-1
-        [rhs] = ode_r_expl(X(xr,i),U(:,i),P,ts(i));
-        rhsr_model(:,i) = full(rhs);
-    end
-
-    % trapezoidal
-    % delta_oder = FD(xr,1:end-1)-full((rhsr_model(:,1:end-1)+rhsr_model(:,2:end))/2);
-    delta_oder = FD(xr,1:end-1)-rhsr_model(:,2:end);
-
-    assert(max(max(abs(delta_oder)))<1e-10)
-    
-    
-    
     dae_expl = model.dae_expl;
 
     [dae_r_expl,xr,zr] = model.dae_r_expl;
@@ -216,6 +196,32 @@ for model_file_c=models
     assert(max(max(abs(delta_oder)))<1e-10)
     
     model.ode_expl
+    
+
+    [ode_r_expl,xr,zr,unsafe] = model.ode_r_expl;
+    nxr = numel(xr);
+    nzr = numel(zr);
+
+    rhsr_model = zeros(nxr,numel(ts)-1);
+
+    FD = (X(:,2:end)-X(:,1:end-1))/dt;
+
+    for i=1:numel(ts)-1
+        [rhs] = ode_r_expl(X(xr,i),U(:,i),P,ts(i));
+        rhsr_model(:,i) = full(rhs);
+    end
+
+    % trapezoidal
+    % delta_oder = FD(xr,1:end-1)-full((rhsr_model(:,1:end-1)+rhsr_model(:,2:end))/2);
+    delta_oder = FD(xr,1:end-1)-rhsr_model(:,2:end);
+    
+    if unsafe
+        disp('Unsafe ODE; ignoring non-regular values in numeric test')
+        delta_oder(isnan(delta_oder)) = 0;
+        delta_oder(isinf(delta_oder)) = 0;
+    end
+
+    assert(max(max(abs(delta_oder)))<1e-10)
     %
     close_system(model_file_name, 0);
 

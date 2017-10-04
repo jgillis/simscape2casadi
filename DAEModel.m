@@ -80,7 +80,7 @@ classdef DAEModel
           
           out = Function('E',{x(xr),z(zr),u,p,t},{M\rhs,res},{'xr','zr','u','p','t'},{'ode','alg'});
         end
-        function out = ode_expl(self)
+        function [out,unsafe] = ode_expl(self)
           import casadi.*
           dae = self.dae_expl();
           
@@ -96,14 +96,14 @@ classdef DAEModel
           assert(~any(cell2mat(which_depends(res, z, 2, false))))
           J = jacobian(res,z);
           
-          res
+          unsafe = ~isempty(strfind(str(J),'?'));
 
           zsol = -J\substitute(res,z,0);
           rhs = substitute(rhs,z,zsol);
           
           out = Function('E',{x,u,p,t},{rhs},char('x','u','p','t'),char('rhs'));
         end
-        function [out,xr,zr] = ode_r_expl(self)
+        function [out,xr,zr,unsafe] = ode_r_expl(self)
           import casadi.*
           [dae,xr,zr] = self.dae_r_expl();
           
@@ -119,7 +119,7 @@ classdef DAEModel
           % Check if res in linear in z
           assert(~any(cell2mat(which_depends(res, z, 2, false))))
           J = jacobian(res,z);
-
+          unsafe = ~isempty(strfind(str(J),'?'));
           zsol = -J\substitute(res,z,0);
           rhs = substitute(rhs,z,zsol);
           
