@@ -83,7 +83,13 @@ classdef DAEModel
           res = rhs(nxr+1:end);
           rhs = rhs(1:nxr);
           
-          out = Function('E',{x(xr),z(zr),u,p,q,t},{M\rhs,res},{'xr','zr','u','p','q','t'},{'ode','alg'});
+          r = M\rhs;
+          for i=1:length(r)
+             if is_constant(r(i))
+                 assert(is_regular(r(i)), 'M not invertible; may happen when you connect flexible element in series without inertia inbetween')
+             end
+          end
+          out = Function('E',{x(xr),z(zr),u,p,q,t},{r,res},{'xr','zr','u','p','q','t'},{'ode','alg'});
         end
         function [out,unsafe] = ode_expl(self)
           import casadi.*
