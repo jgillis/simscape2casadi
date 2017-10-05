@@ -359,7 +359,7 @@ def rvalue_to_c(node):
   return generator.visit(node)
 
 
-metadata = {"variable_names": [],"input_names":[],"output_names":[],"parameter_names":[]}
+metadata = {"variable_names": [],"input_names":[],"output_names":[],"parameter_names":[],"mmode_names":[],"n_modes":0}
 class MetaDataVisitor(c_ast.NodeVisitor):
 
   def visit_Decl(self, n, no_type=False):
@@ -376,6 +376,12 @@ class MetaDataVisitor(c_ast.NodeVisitor):
           for e in n.init.exprs:
             name = e.exprs[0].value[1:-1]
             metadata["parameter_names"].append(name)
+       if n.name=="s_major_mode_data":
+          if isinstance(n.init,c_ast.ID): # Skip when NULL
+            return
+          for e in n.init.exprs:
+            name = e.exprs[0].value[1:-1]
+            metadata["mmode_names"].append(name)
        if n.name=="s_equation_data":
           for e in n.init.exprs:
             pass #print("eq", e.exprs[0].value[1:-1].split(".")[1:], e.exprs[2].value)
@@ -393,6 +399,8 @@ class MetaDataVisitor(c_ast.NodeVisitor):
            if target=="output_info":
              assert i==len(metadata["output_names"])
              metadata["output_names"].append(var_name)
+         if node.lvalue.field.name=="mNumModes":
+           metadata["n_modes"]=int(node.rvalue.value)
     except:
       pass
 class FuncDefVisitor(c_ast.NodeVisitor):
@@ -491,7 +499,9 @@ map_label_sys = {"arg_x": "mX","arg_u": "mU","args_p":"mDP_R","args_t":"mT"}
 
 map_extra_body = {}
 
+constructor.append("self.nm = "+str(metadata["n_modes"])+";")
 constructor.append("self.parameter_names = {" + str(metadata["parameter_names"])[1:-1] + "};")
+constructor.append("self.mmode_names = {" + str(metadata["mmode_names"])[1:-1] + "};")
 constructor.append("self.variable_names = {" + str(metadata["variable_names"])[1:-1] + "};")
 constructor.append("self.input_names = {" + str(metadata["input_names"])[1:-1] + "};")
 constructor.append("self.output_names = {" + str(metadata["output_names"])[1:-1] + "};")
@@ -514,9 +524,12 @@ for k in codes:
   methods.append("function ret = {name}({args})\n".format(name=k,args=",".join(["self"]+args)))
   for a in args:
     methods.append(get_system_input_var_name(node)+".%s.mX = casadi.SX(" % map_label_sys[a]+ a +");\n")
-  if k in ["mode","f"]:
+  if k in ["f"]:
     methods.append("  out.mX = casadi.SX.zeros(size(self.sp_a,1));")
+  if k in ["mode","f"]:
     methods.append("  out.mU = casadi.SX.zeros(size(self.sp_b,2));")
+  if k in ["mode"]:
+    methods.append("  out.mX = casadi.SX.zeros(self.nm,1);")
   if k in ["f"]:
     methods.append("  " + get_system_input_var_name(node)+".mM.mX = self.mode("+ ",".join(map_args["mode"])+");\n")
 
@@ -540,6 +553,8 @@ with open(model_name+".m","w") as f:
       input_names
       output_names
       parameter_names
+      mmode_names
+      nm
     end
     
     methods
