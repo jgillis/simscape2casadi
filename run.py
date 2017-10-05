@@ -317,6 +317,8 @@ class SimScapeExporter(MatlabExpressionGenerator):
            s_false = cond+"_false_"+self.prefix+e         
 
            s += self._make_indent() + self.prefix+e + " = self.if_else(%s,%s,%s);\n" % (cond, s_true, s_false)
+           
+           self.lvalues.append(e)
        else:
          for e in sorted(set(sp_true.lvalues)):
            s_true = cond+"_true_"+ self.prefix+e
