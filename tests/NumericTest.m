@@ -109,20 +109,21 @@ for model_file_c=models
     nz = model.nz;
     nu = model.nu;
     np = model.np;
-
+    nq = model.nq;
     disp('Unreduced DAE')
     fprintf('#diff states %d\n', nx);
     fprintf('#algebraic states %d\n', nz);
     fprintf('#inputs %d\n', nu);
     fprintf('#parameters %d\n', np);
-    
+    fprintf('#major modes %d\n', nq);
     x = SX.sym('x',nx);
     z = SX.sym('z',nz);
     u = SX.sym('u',nu);
     p = SX.sym('u',np);
+    q = SX.sym('q',nq);
     t = SX.sym('t');
     
-    model.f([x;z],u,p,t)
+    model.f([x;z],u,p,q,t)
 
     % Reduce model
     disp('reduce DAE')
@@ -173,12 +174,12 @@ for model_file_c=models
     FD = (X(:,2:end)-X(:,1:end-1))/dt;
 
     for i=1:numel(ts)-1
-        [rhs,res] = dae_expl(X(:,i),Z(:,i),U(:,i),P,ts(i));
+        [rhs,res] = dae_expl(X(:,i),Z(:,i),U(:,i),P,0,ts(i));
         delta_dae(:,i) = full(res);
         rhs_model(:,i) = full(rhs);
 
 
-        [rhs,res] = dae_r_expl(X(xr,i),Z(zr,i),U(:,i),P,ts(i));
+        [rhs,res] = dae_r_expl(X(xr,i),Z(zr,i),U(:,i),P,0,ts(i));
         delta_daer(:,i) = full(res);
         rhsr_model(:,i) = full(rhs);
     end
@@ -207,7 +208,7 @@ for model_file_c=models
     FD = (X(:,2:end)-X(:,1:end-1))/dt;
 
     for i=1:numel(ts)-1
-        [rhs] = ode_r_expl(X(xr,i),U(:,i),P,ts(i));
+        [rhs] = ode_r_expl(X(xr,i),U(:,i),P,0,ts(i));
         rhsr_model(:,i) = full(rhs);
     end
 

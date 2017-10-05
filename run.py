@@ -502,9 +502,9 @@ for k in matrices:
       nrow=sp.rows,ncol=sp.cols,colind=colind,row=row))
 
 
-map_args = {"mode":["arg_x","arg_u","args_p","args_t"],"f":["arg_x","arg_u","args_p","args_t"]}
+map_args = {"mode":["arg_x","arg_u","args_p","args_q","args_t"],"f":["arg_x","arg_u","args_p","args_q","args_t"],"update_i":["args_x","args_q","args_i"]}
 map_args_default = ["args_p"]
-map_label_sys = {"arg_x": "mX","arg_u": "mU","args_p":"mDP_R","args_t":"mT"}
+map_label_sys = {"arg_x": "mX","arg_u": "mU","args_p":"mDP_R","args_t":"mT","args_q":"mQ"}
 
 map_extra_body = {}
 

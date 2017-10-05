@@ -40,6 +40,9 @@ classdef DAEModel
         function out = np(self)
           out = numel(self.parameter_names);
         end
+        function out = nq(self)
+          out = numel(self.mmode_names);
+        end
         function out = nz(self)
           out = self.n - self.nx;
         end
@@ -55,12 +58,13 @@ classdef DAEModel
           z = SX.sym('z',self.nz);
           u = SX.sym('u',self.nu);
           p = SX.sym('p',self.np);
+          q = SX.sym('q',self.nq);
           t = SX.sym('t');
 
-          E = self.a(p) * [x;z] + self.b(p)*u + self.f([x;z],u,p,t);
+          E = self.a(p) * [x;z] + self.b(p)*u + self.f([x;z],u,p,q,t);
           M = self.m(p);
           M = M(1:self.nx,1:self.nx);
-          out = Function('E',{x,z,u,p,t},{M\E(1:self.nx),E(self.nx+1:end)},{'x','z','u','p','t'},{'ode','alg'});
+          out = Function('E',{x,z,u,p,q,t},{M\E(1:self.nx),E(self.nx+1:end)},{'x','z','u','p','q','t'},{'ode','alg'});
         end
         function [out,xr,zr] = dae_r_expl(self)
           import casadi.*
@@ -69,16 +73,17 @@ classdef DAEModel
           z = SX.sym('z',self.nz);
           u = SX.sym('u',self.nu);
           p = SX.sym('p',self.np);
+          q = SX.sym('q',self.nq);
           t = SX.sym('t');
           
-          [M,rhs] = Fun(x(xr),z(zr),u,p,t);
+          [M,rhs] = Fun(x(xr),z(zr),u,p,q,t);
           nxr = numel(xr);
           M = M(1:nxr,1:nxr);
 
           res = rhs(nxr+1:end);
           rhs = rhs(1:nxr);
           
-          out = Function('E',{x(xr),z(zr),u,p,t},{M\rhs,res},{'xr','zr','u','p','t'},{'ode','alg'});
+          out = Function('E',{x(xr),z(zr),u,p,q,t},{M\rhs,res},{'xr','zr','u','p','q','t'},{'ode','alg'});
         end
         function [out,unsafe] = ode_expl(self)
           import casadi.*
@@ -89,7 +94,8 @@ classdef DAEModel
           z = dae_in{2};
           u = dae_in{3};
           p = dae_in{4};
-          t = dae_in{5};
+          q = dae_in{5};
+          t = dae_in{6};
           [rhs,res] = dae(dae_in{:});
           
           % Check if res in linear in z
@@ -101,7 +107,7 @@ classdef DAEModel
           zsol = -J\substitute(res,z,0);
           rhs = substitute(rhs,z,zsol);
           
-          out = Function('E',{x,u,p,t},{rhs},char('x','u','p','t'),char('rhs'));
+          out = Function('E',{x,u,p,q,t},{rhs},char('x','u','p','q','t'),char('rhs'));
         end
         function [out,xr,zr,unsafe] = ode_r_expl(self)
           import casadi.*
@@ -112,7 +118,8 @@ classdef DAEModel
           z = dae_in{2};
           u = dae_in{3};
           p = dae_in{4};
-          t = dae_in{5};
+          q = dae_in{5};
+          t = dae_in{6};
           
           [rhs,res] = dae(dae_in{:});
           
@@ -123,7 +130,7 @@ classdef DAEModel
           zsol = -J\substitute(res,z,0);
           rhs = substitute(rhs,z,zsol);
           
-          out = Function('E',{x,u,p,t},{rhs},{'x','u','p','t'},{'rhs'});
+          out = Function('E',{x,u,p,q,t},{rhs},{'x','u','p','q','t'},{'rhs'});
         end
         function [Fun, xr, zr] = Fr(self)
             model = Model;
@@ -132,12 +139,14 @@ classdef DAEModel
             nz = self.nz;
             nu = self.nu;
             np = self.np;
+            nq = self.nq;
 
             import casadi.*
             x = SX.sym('x',nx);
             z = SX.sym('z',nz);
             u = SX.sym('u',nu);
             p = SX.sym('p',np);
+            q = SX.sym('q',nq);
             t = SX.sym('t');
             
             pp = p;
@@ -149,7 +158,7 @@ classdef DAEModel
             A = self.a(p);
             B = self.b(p);
 
-            f_expr = self.f([x;z],u,p,t);
+            f_expr = self.f([x;z],u,p,q,t);
 
             
             t_mupad = sym('t');
@@ -161,6 +170,7 @@ classdef DAEModel
             z_mupad = cellfun(@(e) sym([name(e) '(t)']),vertsplit(z),'uni',false);
             u_mupad = cellfun(@(e) sym([name(e) '(t)']),vertsplit(u),'uni',false);
             p_mupad = cellfun(@(e) sym(name(e)),vertsplit(p),'uni',false);
+            q_mupad = cellfun(@(e) sym(name(e)),vertsplit(q),'uni',false);
 
             [A_mupad, fA_mupad, fA_casadi] = DAEModel.to_mupad(A, 'A');
             [B_mupad, fB_mupad, fB_casadi] = DAEModel.to_mupad(B, 'B');
@@ -183,9 +193,10 @@ classdef DAEModel
             Z = sym('Z',[nz,1]);
             U = sym('U',[nu,1]);
             P = sym('P',[np,1]);
+            Q = sym('Q',[nq,1]);
             T = sym('T',[1,1]);
             
-            F = subs(F,[vars;vertcat(u_mupad{:});vertcat(p_mupad{:})],[X;Z;U;P]);
+            F = subs(F,[vars;vertcat(u_mupad{:});vertcat(p_mupad{:});vertcat(q_mupad{:})],[X;Z;U;P;Q]);
             M = subs(M,[vertcat(p_mupad{:})],[P]); 
 
             newVars = subs(newVars,vars,[X;Z]);
@@ -193,7 +204,7 @@ classdef DAEModel
             [~,xr] = find(jacobian(newVars,[X]));
             [~,zr] = find(jacobian(newVars,[Z]));
 
-            F = matlabFunction(F,'Vars',{[X;Z],U,P,t_mupad},'File','temp');
+            F = matlabFunction(F,'Vars',{[X;Z],U,P,Q,t_mupad},'File','temp');
             F = fileread('temp.m');
             i = strfind(F,'%');
             F = F(i(1):end);
@@ -231,7 +242,7 @@ classdef DAEModel
             in1 = p;
             temp;
 
-            Fun = Function('F',{x(xr),z(zr),u,p,t},{M,F},{'xr','zr','u','p','t'},{'M','F'});
+            Fun = Function('F',{x(xr),z(zr),u,p,q,t},{M,F},{'xr','zr','u','p','q','t'},{'M','F'});
         end
     end
     methods(Static)
@@ -276,7 +287,7 @@ classdef DAEModel
               deps = '';
               for d=deps_i
                   n = name(v(d));
-                  if n(1)=='p' || n(1)=='t'
+                  if n(1)=='p' || n(1)=='t' || n(1)=='q'
                     deps = [deps  n ','];  
                   else
                     deps = [deps  n '(t),'];

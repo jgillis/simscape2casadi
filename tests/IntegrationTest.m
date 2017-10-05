@@ -110,11 +110,13 @@ for model_file_c=models
     nz = model.nz;
     nu = model.nu;
     np = model.np;
+    nq = model.nq;
 
     x = SX.sym('x',nx);
     z = SX.sym('z',nz);
     u = SX.sym('u',nu);
     p = SX.sym('u',np);
+    q = SX.sym('u',nq);
     t = SX.sym('t');
     
     %
@@ -159,13 +161,13 @@ for model_file_c=models
     znext = SX.sym('znext',nzr);
     tnext = SX.sym('t');
     
-    [rhs,res] = dae_r_expl(xnext,znext,u,p,tnext);
-    rf = Function('rf',{[xnext;znext],x(xr),u,p,tnext},{[xnext-(x(xr)+dt*rhs);res]});
+    [rhs,res] = dae_r_expl(xnext,znext,u,p,q,tnext);
+    rf = Function('rf',{[xnext;znext],x(xr),u,p,q,tnext},{[xnext-(x(xr)+dt*rhs);res]});
     rf = rootfinder('rf','newton',rf,struct('max_iter',max_iter));
     
     for i=1:numel(ts)-1
       % This is odd: Simscape seems to take U(:,i+1) here instead of U(:,i)
-      sol = rf([Xtraj(:,i);Ztraj(:,i)],Xtraj(:,i),U(:,i+1),P,ts(i+1));
+      sol = rf([Xtraj(:,i);Ztraj(:,i)],Xtraj(:,i),U(:,i+1),P,0,ts(i+1));
       sol = full(sol);
       Xtraj(:,i+1) = sol(1:nxr);
       Ztraj(:,i+1) = sol(nxr+1:end);
