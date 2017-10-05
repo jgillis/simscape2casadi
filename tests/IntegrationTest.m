@@ -173,7 +173,7 @@ for model_file_c=models
       Ztraj(:,i+1) = sol(nxr+1:end);
     end
     
-    assert(max(max(abs(X-Xtraj)))<1e-10)
+    assert(max(max(abs(X(xr,:)-Xtraj)))<1e-10)
     
     %
     close_system(model_file_name, 0);
