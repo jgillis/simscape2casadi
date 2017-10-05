@@ -185,6 +185,10 @@ classdef DAEModel
             size(newEqs);
             size(newVars);
 
+            
+            [newEqs, newVars] = reduceDAEIndex(newEqs,newVars);
+            [newEqs,newVars,~] = reduceRedundancies(newEqs,newVars);
+            
             assert(isLowIndexDAE(newEqs,newVars))
 
             [M,F] = massMatrixForm(newEqs,newVars);
