@@ -165,12 +165,13 @@ class MatlabExpressionGenerator(CommonExpressionGenerator):
       return CommonExpressionGenerator.visit_UnaryOp(self, n)
 
   def visit_BinaryOp(self, n):
-    if n.op == '!=':
+    m = {"!=": "~=", "&&": "&", "||": "|"}
+    if n.op in m.keys():
         lval_str = self._parenthesize_if(n.left,
                             lambda d: not self._is_simple_node(d))
         rval_str = self._parenthesize_if(n.right,
                             lambda d: not self._is_simple_node(d))
-        return '%s %s %s' % (lval_str, "~=", rval_str)
+        return '%s %s %s' % (lval_str, m[n.op], rval_str)
     else:
       return CommonExpressionGenerator.visit_BinaryOp(self, n)
 
@@ -205,6 +206,14 @@ class MatlabExpressionGenerator(CommonExpressionGenerator):
           lval_str = lval_str.replace(")","}")
         return '%s %s %s' % (lval_str, node.op, rval_str)
 
+  def visit_FuncCall(self, n):
+    m = {"fabs": "abs","pmf_get_inf":"inf"}
+    if to_c(n.name) in m.keys():
+      fref = self._parenthesize_unless_simple(n.name)
+      return m[to_c(n.name)]+'(' + self.visit(n.args) + ')'
+    else:
+      return CommonExpressionGenerator.visit_FuncCall(self, n)
+        
 class SimScapeExporter(MatlabExpressionGenerator):
   def __init__(self,*args,**kwargs):
     self.cond_count = 0
