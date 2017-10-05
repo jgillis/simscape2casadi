@@ -206,13 +206,13 @@ classdef DAEModel
             end
             
             fwrite(fileID,F);
-            fclose(fileID)
-            rehash
+            fclose(fileID);
+            rehash;
 
             in1 = [x;z];
             in3 = p;
             U1 = u;
-            temp
+            temp;
             
             M = matlabFunction(M,'Vars',{P},'File','temp');
             M = fileread('temp.m');
@@ -225,11 +225,11 @@ classdef DAEModel
             end
             
             fwrite(fileID,M);
-            fclose(fileID)
-            rehash
+            fclose(fileID);
+            rehash;
             
             in1 = p;
-            temp
+            temp;
 
             Fun = Function('F',{x(xr),z(zr),u,p,t},{M,F},{'xr','zr','u','p','t'},{'M','F'});
         end
