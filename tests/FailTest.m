@@ -26,10 +26,14 @@ for d={d.name}
 end
 
 models = {...
-          '../models/R2016b/fail_driveline_springdamper_flex'};%,...
+            {'../models/R2016b/fail_driveline_springdamper_flex',...
+             'Mass matrix has entries outside of 1:nxr'},...
+            {'../models/R2016b/fail_driveline_mass',...
+             'Mass matrix has entries outside of 1:nxr'}};
 
-for model_file_c=models
-    model_file = model_file_c{1};
+for model=models
+    model_file = model{1}{1};
+    error_message = model{1}{2};
     disp(['model: ' model_file])
     [path,model_file_name,ext] = fileparts(model_file);
     
@@ -99,7 +103,7 @@ for model_file_c=models
     try
        model.dae_r_expl;
     catch ME
-       assert(~isempty(strfind(ME.message,'M not invertible; may happen when you connect flexible element in series without inertia inbetween')))
+       assert(~isempty(strfind(ME.message,error_message)))
     end
 
     close_system(model_file_name, 0);

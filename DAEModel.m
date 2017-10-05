@@ -251,6 +251,10 @@ classdef DAEModel
             
             in1 = p;
             temp;
+            
+            Mcopy = SX(M);
+            Mcopy(1:length(xr),1:length(xr))=0;
+            assert(nnz(sparsify(Mcopy))==0,'Mass matrix has entries outside of 1:nxr')
 
             Fun = Function('F',{x(xr),z(zr),u,p,q,t},{M,F},{'xr','zr','u','p','q','t'},{'M','F'});
         end
