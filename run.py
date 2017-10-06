@@ -24,7 +24,7 @@ SOFTWARE.
 
 import sys
 import os
-import ipdb
+#import ipdb
 from pycparser import c_parser, c_ast, parse_file, c_generator, CParser
 from collections import defaultdict 
 
@@ -464,7 +464,7 @@ code_dir = model_file_name + "_grt_rtw"
 
 import glob
 
-ds_file = glob.glob(code_dir+"/"+model_file_name+"_*_ds.c")[0].split("/")[1]
+ds_file = glob.glob(os.path.join(code_dir,model_file_name+"_*_ds.c"))[0].split(os.path.sep)[1]
 sim_file_name = ds_file[:-5]
 
 ds_file_pre = os.path.join(code_dir,ds_file[:-2]+"_preprocessed.c")
@@ -478,8 +478,17 @@ with open(ds_file_pre,"w") as f_out:
           l = mod_l
       f_out.write(l)
 
-cpp_args=["-I" + basepath + "/include"]
-ast = parse_file(ds_file_pre, use_cpp=True, cpp_args=cpp_args)
+cpp_path=None
+if os.name=='nt':
+   cpp_args=["/E","/I" + basepath + "/include"]
+   cpp_path=r"C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\amd64\cl.exe"
+   if not os.path.exists(cpp_path):
+      cpp_path=r"C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\bin\amd64\cl.exe"
+else:
+   cpp_args=["-I" + basepath + "/include"]
+
+print cpp_args
+ast = parse_file(ds_file_pre, use_cpp=True, cpp_path=cpp_path,cpp_args=cpp_args)
 
 v = FuncDefVisitor()
 v.visit(ast)
