@@ -282,7 +282,18 @@ classdef DAEModel
 
                 if nnz(Mpat(nxr+1:end,1:nxr))~=0
                    warning('extra elimination needed'); 
-                   % Rows to be eliminated
+                   
+                   % Transformation: order rows such that
+                   % equations without z go first
+                   %
+                   % Needed because we assume a partition of M
+                   priority = find(~sum(full(DM(jacobian(F,z)~=0)),2));
+                   priorityi = find(sum(full(DM(jacobian(F,z)~=0)),2));
+                   M = [M(priority,:);M(priorityi,:)];
+                   F = [F(priority,:);F(priorityi,:)];
+                   
+                   % Transformation: non-zero rows in algebraic part of
+                   % mass matrix can (in fact must!) be eliminated
                    elr = find(sum(Mpat(nxr+1:end,1:nxr),2));
                    elri = find(~sum(Mpat(nxr+1:end,1:nxr),2));
                    A = jacobian(F(nxr+zr(elr)),[z(zr)]);
@@ -292,14 +303,15 @@ classdef DAEModel
 
                    dx = SX.sym('dx',nx);
                    zsol = A\(substitute(-F(nxr+zr(elr)),z(zr(elc)),0)+M(nxr+zr(elr),1:nxr)*dx(xr));
+
                    e = substitute(M*[dx(xr);zeros(nzr,1)]-F,z(zr(elc)),zsol);
 
                    M = jacobian(e,dx(xr));
                    F = -substitute(e,dx(xr),0);
 
-                   M = M([1:nxr nxr+elri],:);
+                   M = M([1:nxr (nxr+elri)'],:);
                    M = [M zeros(size(M,1),size(M,1)-size(M,2))];
-                   F = F([1:nxr nxr+elri],:);
+                   F = F([1:nxr (nxr+elri)'],:);
 
                    zr = zr(elci);
 
