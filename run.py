@@ -478,7 +478,7 @@ with open(ds_file_pre,"w") as f_out:
           l = mod_l
       f_out.write(l)
 
-cpp_path=None
+cpp_path="cpp"
 if os.name=='nt':
    cpp_args=["/E","/I" + basepath + "/include"]
    cpp_path=r"C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\amd64\cl.exe"

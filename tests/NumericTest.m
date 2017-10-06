@@ -235,8 +235,12 @@ for model_file_c=models
 
     delete Model.m
     delete temp.m
-    delete(model_file_name)
-    delete([model_file_name '.exe'])
+    if exist(model_file_name)
+        delete(model_file_name)
+    end
+    if exist([model_file_name '.exe'])
+        delete([model_file_name '.exe'])
+    end
     rmdir('slprj','s')
 
 end
