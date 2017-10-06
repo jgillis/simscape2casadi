@@ -77,6 +77,8 @@ classdef DAEModel
           t = SX.sym('t');
           
           [M,rhs] = Fun(x(xr),z(zr),u,p,q,t);
+          
+
           nxr = numel(xr);
           M = M(1:nxr,1:nxr);
 
@@ -105,13 +107,17 @@ classdef DAEModel
           [rhs,res] = dae(dae_in{:});
           
           % Check if res in linear in z
-          assert(~any(cell2mat(which_depends(res, z, 2, false))))
-          J = jacobian(res,z);
-          
-          unsafe = ~isempty(strfind(str(J),'?'));
+          if is_empty(res)
+              unsafe = 0;
+          else
+            assert(~any(cell2mat(which_depends(res, z, 2, false))))
+              J = jacobian(res,z);
 
-          zsol = -J\substitute(res,z,0);
-          rhs = substitute(rhs,z,zsol);
+              unsafe = ~isempty(strfind(str(J),'?'));
+
+              zsol = -J\substitute(res,z,0);
+              rhs = substitute(rhs,z,zsol);
+          end
           
           out = Function('E',{x,u,p,q,t},{rhs},char('x','u','p','q','t'),char('rhs'));
         end
@@ -130,11 +136,17 @@ classdef DAEModel
           [rhs,res] = dae(dae_in{:});
           
           % Check if res in linear in z
-          assert(~any(cell2mat(which_depends(res, z, 2, false))))
-          J = jacobian(res,z);
-          unsafe = ~isempty(strfind(str(J),'?'));
-          zsol = -J\substitute(res,z,0);
-          rhs = substitute(rhs,z,zsol);
+          size(res)
+          size(z)
+          if is_empty(res)
+              unsafe = 0;
+          else
+            assert(~any(cell2mat(which_depends(res, z, 2, false))))
+            J = jacobian(res,z);
+            unsafe = ~isempty(strfind(str(J),'?'));
+            zsol = -J\substitute(res,z,0);
+            rhs = substitute(rhs,z,zsol);
+          end
           
           out = Function('E',{x,u,p,q,t},{rhs},{'x','u','p','q','t'},{'rhs'});
         end
@@ -187,13 +199,15 @@ classdef DAEModel
 
             eqs = [M_mupad*vertcat(dx_mupad{:});zeros(nz,1)]==A_mupad*vars+B_mupad*vertcat(u_mupad{:})+f_expr_mupad;
 
+            %vars = vertcat(x_mupad{:});
             [newEqs,newVars,~] = reduceRedundancies(eqs,vars);
+            
             size(newEqs);
             size(newVars);
-
+            assert(isLowIndexDAE(newEqs,newVars))
             
-            [newEqs, newVars] = reduceDAEIndex(newEqs,newVars);
-            [newEqs,newVars,~] = reduceRedundancies(newEqs,newVars);
+            %[newEqs, newVars] = reduceDAEIndex(newEqs,newVars);
+            %[newEqs,newVars,~] = reduceRedundancies(newEqs,newVars);
             
             assert(isLowIndexDAE(newEqs,newVars))
 
@@ -252,9 +266,51 @@ classdef DAEModel
             in1 = p;
             temp;
             
-            Mcopy = SX(M);
-            Mcopy(1:length(xr),1:length(xr))=0;
-            assert(nnz(sparsify(Mcopy))==0,'Mass matrix has entries outside of 1:nxr')
+            %Mcopy = SX(M);
+            %Mcopy(1:length(xr),1:length(xr))=0;
+            %assert(nnz(sparsify(Mcopy))==0,'Mass matrix has entries outside of 1:nxr')
+            
+            while true
+                nxr = numel(xr);
+                nzr = numel(zr);
+
+                Mpat = full(DM(M)~=0);
+
+                %
+                assert(nnz(Mpat(nxr+1:end,nxr+1:end))==0)
+                assert(nnz(Mpat(1:nxr,nxr+1:end))==0)
+
+                if nnz(Mpat(nxr+1:end,1:nxr))~=0
+                   warning('extra elimination needed'); 
+                   % Rows to be eliminated
+                   elr = find(sum(Mpat(nxr+1:end,1:nxr),2));
+                   elri = find(~sum(Mpat(nxr+1:end,1:nxr),2));
+                   A = jacobian(F(nxr+zr(elr)),[z(zr)]);
+                   elc = find(sum(full(DM(A)~=0),1));
+                   elci = find(~sum(full(DM(A)~=0),1));
+                   A = A(:,elc);
+
+                   dx = SX.sym('dx',nx);
+                   zsol = A\(substitute(-F(nxr+zr(elr)),z(zr(elc)),0)+M(nxr+zr(elr),1:nxr)*dx(xr));
+                   e = substitute(M*[dx(xr);zeros(nzr,1)]-F,z(zr(elc)),zsol);
+
+                   M = jacobian(e,dx(xr));
+                   F = -substitute(e,dx(xr),0);
+
+                   M = M([1:nxr nxr+elri],:);
+                   M = [M zeros(size(M,1),size(M,1)-size(M,2))];
+                   F = F([1:nxr nxr+elri],:);
+
+                   zr = zr(elci);
+
+                end
+
+                Mcopy = SX(M);
+                Mcopy(1:length(xr),1:length(xr))=0;
+              if nnz(sparsify(Mcopy))==0
+                  break
+              end
+            end
 
             Fun = Function('F',{x(xr),z(zr),u,p,q,t},{M,F},{'xr','zr','u','p','q','t'},{'M','F'});
         end
