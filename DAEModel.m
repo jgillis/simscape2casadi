@@ -256,12 +256,27 @@ classdef DAEModel
             F = subs(F,[vars;vertcat(u_mupad{:});vertcat(p_mupad{:});vertcat(q_mupad{:})],[X;Z;U;P;Q]);
             M = subs(M,[vertcat(p_mupad{:})],[P]); 
 
-            newVars = subs(newVars,vars,[X;Z]);
 
-            [~,xr] = find(jacobian(newVars,[X]));
-            [~,zr] = find(jacobian(newVars,[Z]));
 
             F = matlabFunction(F,'Vars',{[X;Z],U,P,Q,t_mupad},'File','temp');
+            names_newVars = cellfun(@char,num2cell(newVars),'uni',false);
+            names_x = cellfun(@char,x_mupad,'uni',false);
+            names_z = cellfun(@char,z_mupad,'uni',false);
+            
+            xr = [];
+            zr = [];
+            for i=1:length(names_newVars)
+                for j=1:length(names_x)
+                    if strcmp(names_newVars{i},names_x{j})
+                       xr = [xr;j]; 
+                    end
+                end
+                for j=1:length(names_z)
+                    if strcmp(names_newVars{i},names_z{j})
+                       zr = [zr;j]; 
+                    end
+                end
+            end
             F = fileread('temp.m');
             i = strfind(F,'%');
             F = F(i(1):end);
