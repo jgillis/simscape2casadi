@@ -487,7 +487,6 @@ if os.name=='nt':
 else:
    cpp_args=["-I" + basepath + "/include"]
 
-print cpp_args
 ast = parse_file(ds_file_pre, use_cpp=True, cpp_path=cpp_path,cpp_args=cpp_args)
 
 v = FuncDefVisitor()
