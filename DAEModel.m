@@ -179,6 +179,7 @@ classdef DAEModel
             f_expr = self.f([x;z],u,p,q,t);
 
             
+            patt = @(A) full(DM(sparsity(sparsify(SX(A))),1));
             t_mupad = sym('t');
             x_mupad = cellfun(@(e) sym([name(e) '(t)']),vertsplit(x),'uni',false);
             dx_mupad = cell(nx,1);
@@ -274,7 +275,7 @@ classdef DAEModel
                 nxr = numel(xr);
                 nzr = numel(zr);
 
-                Mpat = full(DM(M)~=0);
+                Mpat = patt(M);
 
                 %
                 assert(nnz(Mpat(nxr+1:end,nxr+1:end))==0)
@@ -287,8 +288,8 @@ classdef DAEModel
                    % equations without z go first
                    %
                    % Needed because we assume a partition of M
-                   priority = find(~sum(full(DM(jacobian(F,z)~=0)),2));
-                   priorityi = find(sum(full(DM(jacobian(F,z)~=0)),2));
+                   priority = find(~sum(patt(jacobian(F,z)),2));
+                   priorityi = find(sum(patt(jacobian(F,z)),2));
                    M = [M(priority,:);M(priorityi,:)];
                    F = [F(priority,:);F(priorityi,:)];
                    
@@ -297,8 +298,8 @@ classdef DAEModel
                    elr = find(sum(Mpat(nxr+1:end,1:nxr),2));
                    elri = find(~sum(Mpat(nxr+1:end,1:nxr),2));
                    A = jacobian(F(nxr+zr(elr)),[z(zr)]);
-                   elc = find(sum(full(DM(A)~=0),1));
-                   elci = find(~sum(full(DM(A)~=0),1));
+                   elc = find(sum(patt(A),1));
+                   elci = find(~sum(patt(A),1));
                    A = A(:,elc);
 
                    dx = SX.sym('dx',nx);
