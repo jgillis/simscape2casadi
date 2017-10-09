@@ -38,9 +38,9 @@ models = {...
           '../models/R2016b/fail_driveline_mass',...
           '../models/R2016b/driveline_spring2',...
           '../models/R2016b/fail_driveline_springdamper_flex',...
-          '../models/R2016b/driveline_EM'};
+          '../models/R2016b/driveline_EM',...
+          '../models/R2016b/driveline_springdamper_LUT'};
           %'../models/R2016b/proprietary/FM/DCT_v_0_1'};%,...
-          %'../models/R2016b/driveline_springdamper_LUT'};
 
 for model_file_c=models
     model_file = model_file_c{1};
@@ -75,6 +75,9 @@ for model_file_c=models
     cs.set_param('LimitDataPoints', 'off');
     cs.set_param('EnableMemcpy','off')
     cs.set_param('RTWVerbose','off');
+    cs.set_param('Toolchain','Automatically locate an installed toolchain');
+    cs.set_param('GenCodeOnly',true);
+    cs.set_param('SaveTime',true);
     
     set_param([model_file_name '/Solver Configuration'],'UseLocalSolver','on');
     set_param([model_file_name '/Solver Configuration'],'LocalSolverSampleTime',num2str(Ts));

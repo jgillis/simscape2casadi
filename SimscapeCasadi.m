@@ -36,10 +36,29 @@ classdef SimscapeCasadi
         r = if_else(casadi.SX(cond),iftrue,iffalse);
       end
       function r = tlu2_1d_linear_linear_value(in)
-        warning('Lookup tables not implemented');
-        r = 0;
+        r=SimscapeCasadi.pw_lin(in{3},in{1},in{2});
       end
-    end
+    
+      function y=pw_lin(t, tval, val)
+        import casadi.*
+        N = numel(tval);
+        assert(N>=2);
+        assert(numel(val)==N)
+
+
+        % Gradient for each line segment
+        g = SX(1, N-1);
+        for i=1:N-1
+          g(i) = (val(i+1)- val(i))/(tval(i+1)-tval(i));
+        end
+  
+        lseg = SX(1, N-1);
+        for i=1:N-1
+          lseg(i) = val(i) + g(i)*(t-tval(i));
+        end
+        y = pw_const(t, tval(2:N-1)', lseg);
+      end
+  end
     
 end
 
