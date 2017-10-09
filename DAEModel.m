@@ -161,7 +161,9 @@ classdef DAEModel
 
             import casadi.*
             x = SX.sym('x',nx);
+            x_orig = x;
             z = SX.sym('z',nz);
+            z_orig = z;
             u = SX.sym('u',nu);
             p = SX.sym('p',np);
             q = SX.sym('q',nq);
@@ -180,6 +182,36 @@ classdef DAEModel
 
             
             patt = @(A) full(DM(sparsity(sparsify(SX(A))),1));
+
+            candidates = sum(patt(A),2)==1 & sum(patt(A(:,1:nx)),2)==0;
+            candidates = candidates & ~cell2mat(which_depends(f_expr,z,1,true))';
+            
+            e_triv = find(candidates(nx+1:end));
+            if ~isempty(e_triv)
+                disp('Eliminating trivial algebraic variables')
+                e_trivi = find(~candidates(nx+1:end));
+
+                [col,~] = find(patt(A(nx+e_triv,:))');
+                z_triv = col-nx;
+                z_val = -f_expr(nx+e_triv);
+                for i=1:numel(e_triv)
+                   z_val = z_val/A(nx+e_triv(i),nx+z_triv(i)); 
+                end
+
+
+
+                c = (1:nx+nz);
+                c(col) = [];
+                A = [A(1:nx,:);A(nx+e_trivi,:)];
+                f_expr = substitute([f_expr(1:nx);f_expr(nx+e_trivi)],z(z_triv),z_val) + A(:,col)*z_val;
+                A = A(:,c);
+                B = [B(1:nx,:);B(nx+e_trivi,:)];
+
+                zsel = c(nx+1:end)-nx;
+                z = z(zsel);
+                nz = numel(z);
+            end
+          
             t_mupad = sym('t');
             x_mupad = cellfun(@(e) sym([name(e) '(t)']),vertsplit(x),'uni',false);
             dx_mupad = cell(nx,1);
@@ -326,6 +358,10 @@ classdef DAEModel
             end
 
             Fun = Function('F',{x(xr),z(zr),u,p,q,t},{M,F},{'xr','zr','u','p','q','t'},{'M','F'});
+            
+            [~,zr] = find(patt(jacobian(z(zr),z_orig)));
+            [~,xr] = find(patt(jacobian(x(xr),x_orig)));
+            
         end
     end
     methods(Static)
