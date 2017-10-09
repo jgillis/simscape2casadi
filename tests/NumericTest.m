@@ -77,6 +77,9 @@ for model_file_c=models
     cs.set_param('LimitDataPoints', 'off');
     cs.set_param('EnableMemcpy','off')
     cs.set_param('RTWVerbose','off');
+    cs.set_param('Toolchain','Automatically locate an installed toolchain');
+    cs.set_param('GenCodeOnly',true);
+    cs.set_param('SaveTime',true);
     
     set_param([model_file_name '/Solver Configuration'],'UseLocalSolver','on');
     set_param([model_file_name '/Solver Configuration'],'LocalSolverSampleTime',num2str(Ts));
@@ -93,7 +96,7 @@ for model_file_c=models
 
     simlog = simOut.get('simlog');
 
-    ts = simOut.get('tout');
+    ts = simOut.get(cs.get_param('TimeSaveName'));
     if ts(1)~=0
        ts = [0;ts]; 
     end
