@@ -334,6 +334,7 @@ classdef DAEModel
             in2 = u;
             in3 = p;
             U1 = u;
+            P1 = p;
             temp;
             
             M = matlabFunction(M,'Vars',{XZ,U,P,Q,t_mupad},'File','temp');
@@ -354,6 +355,7 @@ classdef DAEModel
             in2 = u;
             in3 = p;
             U1 = u;
+            P1 = p;
             temp;
 
             %Mcopy = SX(M);

@@ -39,7 +39,8 @@ models = {...
           '../models/R2016b/driveline_spring2',...
           '../models/R2016b/driveline_ICE',...
           '../models/R2016b/fail_driveline_springdamper_flex',...
-          '../models/R2016b/driveline_springdamper_LUT'};
+          '../models/R2016b/driveline_springdamper_constant'};%,...
+          %'../models/R2016b/driveline_springdamper_LUT'};
 
           %'../models/R2016b/driveline_springdamper_clutch'};%,...
           %'../models/R2016b/proprietary/FM/DCT_v_0_1'};%,...
@@ -49,6 +50,7 @@ for model_file_c=models
     disp(['model: ' model_file])
     [path,model_file_name,ext] = fileparts(model_file);
     
+    skip_ode = false;
     if exist([model_file '_config.m'])
         run([model_file '_config.m'])
     end
@@ -208,36 +210,38 @@ for model_file_c=models
     delta_oder = FD(xr,1:end-1)-rhsr_model(:,2:end);
     assert(max(max(abs(delta_oder)))<1e-10)
     
-    model.ode_expl;
-    
+    if ~skip_ode
+        model.ode_expl;
 
-    [ode_r_expl,xr,zr,unsafe] = model.ode_r_expl;
-    
-    ode_r_expl
-    
-    nxr = numel(xr);
-    nzr = numel(zr);
 
-    rhsr_model = zeros(nxr,numel(ts)-1);
+        [ode_r_expl,xr,zr,unsafe] = model.ode_r_expl;
 
-    FD = (X(:,2:end)-X(:,1:end-1))/dt;
+        ode_r_expl
 
-    for i=1:numel(ts)-1
-        [rhs] = ode_r_expl(X(xr,i),U(:,i),P,0,ts(i));
-        rhsr_model(:,i) = full(rhs);
+        nxr = numel(xr);
+        nzr = numel(zr);
+
+        rhsr_model = zeros(nxr,numel(ts)-1);
+
+        FD = (X(:,2:end)-X(:,1:end-1))/dt;
+
+        for i=1:numel(ts)-1
+            [rhs] = ode_r_expl(X(xr,i),U(:,i),P,0,ts(i));
+            rhsr_model(:,i) = full(rhs);
+        end
+
+        % trapezoidal
+        % delta_oder = FD(xr,1:end-1)-full((rhsr_model(:,1:end-1)+rhsr_model(:,2:end))/2);
+        delta_oder = FD(xr,1:end-1)-rhsr_model(:,2:end);
+
+        if unsafe
+            disp('Unsafe ODE; ignoring non-regular values in numeric test')
+            delta_oder(isnan(delta_oder)) = 0;
+            delta_oder(isinf(delta_oder)) = 0;
+        end
+
+        assert(max(max(abs(delta_oder)))<1e-10)
     end
-
-    % trapezoidal
-    % delta_oder = FD(xr,1:end-1)-full((rhsr_model(:,1:end-1)+rhsr_model(:,2:end))/2);
-    delta_oder = FD(xr,1:end-1)-rhsr_model(:,2:end);
-    
-    if unsafe
-        disp('Unsafe ODE; ignoring non-regular values in numeric test')
-        delta_oder(isnan(delta_oder)) = 0;
-        delta_oder(isinf(delta_oder)) = 0;
-    end
-
-    assert(max(max(abs(delta_oder)))<1e-10)
     %
     close_system(model_file_name, 0);
 
