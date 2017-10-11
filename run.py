@@ -131,6 +131,26 @@ code_names = ["m","a","b","y","dxy","f","tduf","tdxf","r","mode","dp_r"]
       
 """
 
+class PreTransform(c_ast.NodeVisitor):
+
+  def visit_Compound(self, n):
+      block_items = n.block_items or []
+      
+      for i,b in enumerate(block_items):
+        if isinstance(b,c_ast.UnaryOp) and b.op=="p--":
+          block_items[i] = c_ast.Assignment("-=", b.expr, c_ast.Constant("int","1"))
+        elif isinstance(b,c_ast.UnaryOp) and b.op=="p++":
+          block_items[i] = c_ast.Assignment("+=", b.expr, c_ast.Constant("int","1"))
+        else:
+          self.visit(b)
+
+  
+  
+def pre_transform(a):
+  v = PreTransform()
+  v.visit(a)
+  return a
+
 generator = c_generator.CGenerator()
 def to_c(node):
   return generator.visit(node)
@@ -502,6 +522,7 @@ else:
 
 ast = parse_file(ds_file_pre, use_cpp=True, cpp_path=cpp_path,cpp_args=cpp_args)
 
+ast = pre_transform(ast)
 v = FuncDefVisitor()
 v.visit(ast)
 
