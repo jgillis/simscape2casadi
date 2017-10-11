@@ -152,7 +152,7 @@ class MatlabExpressionGenerator(CommonExpressionGenerator):
     return arrref + '(' + self.visit(n.subscript) + '+1)'
     
   def visit_StructRef(self, n):
-      sref = self._parenthesize_unless_simple(n.name)
+      sref = self.visit(n.name)
       return sref + "." + self.visit(n.field)
 
   def visit_UnaryOp(self, n):
@@ -355,6 +355,8 @@ class SimScapeExporter(MatlabExpressionGenerator):
       if self.parent_compound is not None and n in self.parent_compound.block_items:
         return "%" + MatlabExpressionGenerator.visit_Cast(self,n)
       else:
+        if to_c(n).startswith("(_NeDynamicSystem"):
+          return "self.extra"
         return self._parenthesize_unless_simple(n.expr)
         
 
@@ -370,7 +372,7 @@ def rvalue_to_c(node):
   return generator.visit(node)
 
 
-metadata = {"variable_names": [],"input_names":[],"output_names":[],"parameter_names":[],"mmode_names":[],"n_modes":0}
+metadata = {"variable_names": [],"input_names":[],"output_names":[],"parameter_names":[],"mmode_names":[],"n_modes":0,"s_constant_table":{},"mTable":{}}
 class MetaDataVisitor(c_ast.NodeVisitor):
 
   def visit_Decl(self, n, no_type=False):
@@ -396,6 +398,12 @@ class MetaDataVisitor(c_ast.NodeVisitor):
        if n.name=="s_equation_data":
           for e in n.init.exprs:
             pass #print("eq", e.exprs[0].value[1:-1].split(".")[1:], e.exprs[2].value)
+            
+       if n.name is not None and "s_constant_table" in n.name:
+          data = []
+          for e in n.init.exprs:
+            data.append(float(e.value))
+          metadata["s_constant_table"][n.name] = data
 
   def visit_Assignment(self, node):
     try:
@@ -414,6 +422,8 @@ class MetaDataVisitor(c_ast.NodeVisitor):
            metadata["n_modes"]=int(node.rvalue.value)
          if node.lvalue.field.name=="mNumRealDerivedParameters":
            metadata["ndp"]=int(node.rvalue.value)
+         if "mTable" in node.lvalue.field.name:
+           metadata["mTable"][node.lvalue.field.name] = metadata["s_constant_table"][node.rvalue.name]
     except:
       pass
 class FuncDefVisitor(c_ast.NodeVisitor):
@@ -528,6 +538,9 @@ constructor.append("self.variable_names = {" + str(metadata["variable_names"])[1
 constructor.append("self.input_names = {" + str(metadata["input_names"])[1:-1] + "};")
 constructor.append("self.output_names = {" + str(metadata["output_names"])[1:-1] + "};")
 constructor.append("self.ndp = " + str(metadata["ndp"]) + ";")
+
+
+constructor.append("self.extra = struct(" + ",".join(["'"+ k+"'"+","+str(v) for k,v in metadata["mTable"].items()]) + ");")
 def get_system_input_var_name(node):
   for e in node.decl.type.args.params:
     if "NeDynamicSystemInput" in e.type.type.type.names:
@@ -582,6 +595,7 @@ with open(model_name+".m","w") as f:
       mmode_names
       nm
       ndp
+      extra
     end
     
     methods

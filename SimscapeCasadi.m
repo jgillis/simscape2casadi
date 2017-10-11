@@ -43,8 +43,8 @@ classdef SimscapeCasadi
         import casadi.*
         N = numel(tval);
         assert(N>=2);
-        assert(numel(val)==N)
-
+        assert(numel(val)==N);
+        tval = SX(tval);
 
         % Gradient for each line segment
         g = SX(1, N-1);
@@ -56,7 +56,7 @@ classdef SimscapeCasadi
         for i=1:N-1
           lseg(i) = val(i) + g(i)*(t-tval(i));
         end
-        y = pw_const(t, tval(2:N-1)', lseg);
+        y = pw_const(t, vec(tval(2:N-1))', vec(lseg)');
       end
   end
     
