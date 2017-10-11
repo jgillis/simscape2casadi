@@ -25,6 +25,9 @@ for d={d.name}
    end
 end
 
+has_proprietary = exist('../models/proprietary','dir');
+
+
 models = {...
           '../models/R2014b/driveline_springdamper',...
           '../models/R2016b/driveline_springdamper',...
@@ -39,22 +42,26 @@ models = {...
           '../models/R2016b/driveline_spring2',...
           '../models/R2016b/driveline_ICE',...
           '../models/R2016b/fail_driveline_springdamper_flex',...
-          '../models/R2016b/driveline_springdamper_constant'};%,...
+          '../models/R2016b/driveline_springdamper_constant',...
+          '../models/proprietary/R2016b/PMA/DiskClutch_Inertia_New'};
+       %   '../models/R2016b/proprietary/FM/smallDrivelineSimScape_oscSpring_flex'};
           %'../models/R2016b/driveline_springdamper_LUT'};
-
-          %'../models/R2016b/driveline_springdamper_clutch'};%,...
+          % '../models/R2016b/proprietary/PMA/DiskClutch_Inertia_New'};
+         % %'../models/R2016b/driveline_springdamper_clutch'};%,...
           %'../models/R2016b/proprietary/FM/DCT_v_0_1'};%,...
 
 for model_file_c=models
+    
+    % Skip priorietary models when not available
+    if ~isempty(strfind(path,'proprietary')) && ~has_proprietary
+        warning(['Skipping proprietary model ' model_file])
+        continue
+    end
+    
     model_file = model_file_c{1};
     disp(['model: ' model_file])
     [path,model_file_name,ext] = fileparts(model_file);
     
-    skip_ode = false;
-    if exist([model_file '_config.m'])
-        run([model_file '_config.m'])
-    end
-
     load_system(model_file);
 
     % Open simulink model
@@ -62,7 +69,15 @@ for model_file_c=models
     cs = getActiveConfigSet(gcs);
 
     Tend = eval(cs.get_param('StopTime'));
-    Ts = 0.01;
+    eval_check = true;
+    integration_check = true;
+    skip_ode = false;
+    check_ode = true;
+    Ts = 0.01;    
+    if exist([model_file '_config.m'])
+        run([model_file '_config.m'])
+    end
+    assert(integration_check || eval_check);
 
     N = ceil(Tend/Ts);
 
@@ -86,7 +101,8 @@ for model_file_c=models
     set_param([model_file_name '/Solver Configuration'],'UseLocalSolver','on');
     set_param([model_file_name '/Solver Configuration'],'LocalSolverSampleTime',num2str(Ts));
     set_param([model_file_name '/Solver Configuration'],'DoFixedCost','on');
-    set_param([model_file_name '/Solver Configuration'],'MaxNonlinIter','10');
+    max_iter = 10;
+    set_param([model_file_name '/Solver Configuration'],'MaxNonlinIter',num2str(max_iter));
     
     % According to Simscape documentation, backward Euler is activated at
     % the initial time, and at discrete changes
@@ -173,74 +189,107 @@ for model_file_c=models
        P(i) = eval(model.parameter_names{i});
     end
 
+    if eval_check
+        dae_expl = model.dae_expl;
 
-    dae_expl = model.dae_expl;
+        [dae_r_expl,xr,zr] = model.dae_r_expl;
 
-    [dae_r_expl,xr,zr] = model.dae_r_expl;
+        delta_dae = zeros(model.nz,numel(ts)-1);
+        delta_daer = zeros(nzr,numel(ts)-1);
 
-    delta_dae = zeros(model.nz,numel(ts)-1);
-    delta_daer = zeros(nzr,numel(ts)-1);
-
-    rhs_model = zeros(nx,numel(ts)-1);
-    rhsr_model = zeros(nxr,numel(ts)-1);
-
-    FD = (X(:,2:end)-X(:,1:end-1))/dt;
-
-    for i=1:numel(ts)-1
-        [rhs,res] = dae_expl(X(:,i),Z(:,i),U(:,i),P,0,ts(i));
-        delta_dae(:,i) = full(res);
-        rhs_model(:,i) = full(rhs);
-
-
-        [rhs,res] = dae_r_expl(X(xr,i),Z(zr,i),U(:,i),P,0,ts(i));
-        delta_daer(:,i) = full(res);
-        rhsr_model(:,i) = full(rhs);
-    end
-
-    %if ~isempty(delta_dae)
-    %  assert(max(max(abs(delta_dae)))<1e-10)
-    %end
-    %delta_ode = FD(:,1:end-1)-rhs_model(:,2:end);
-    %assert(max(max(abs(delta_ode)))<1e-10)
-    
-    if ~isempty(delta_daer)
-      assert(max(max(abs(delta_daer)))<1e-10)
-    end
-
-    delta_oder = FD(xr,1:end-1)-rhsr_model(:,2:end);
-    assert(max(max(abs(delta_oder)))<1e-10)
-    
-    if ~skip_ode
-        model.ode_expl;
-
-
-        [ode_r_expl,xr,zr,unsafe] = model.ode_r_expl;
-
-        ode_r_expl
-
-        nxr = numel(xr);
-        nzr = numel(zr);
-
+        rhs_model = zeros(nx,numel(ts)-1);
         rhsr_model = zeros(nxr,numel(ts)-1);
 
         FD = (X(:,2:end)-X(:,1:end-1))/dt;
 
         for i=1:numel(ts)-1
-            [rhs] = ode_r_expl(X(xr,i),U(:,i),P,0,ts(i));
+            [rhs,res] = dae_expl(X(:,i),Z(:,i),U(:,i),P,0,ts(i));
+            delta_dae(:,i) = full(res);
+            rhs_model(:,i) = full(rhs);
+
+
+            [rhs,res] = dae_r_expl(X(xr,i),Z(zr,i),U(:,i),P,0,ts(i));
+            delta_daer(:,i) = full(res);
             rhsr_model(:,i) = full(rhs);
         end
 
-        % trapezoidal
-        % delta_oder = FD(xr,1:end-1)-full((rhsr_model(:,1:end-1)+rhsr_model(:,2:end))/2);
-        delta_oder = FD(xr,1:end-1)-rhsr_model(:,2:end);
+        %if ~isempty(delta_dae)
+        %  assert(max(max(abs(delta_dae)))<1e-10)
+        %end
+        %delta_ode = FD(:,1:end-1)-rhs_model(:,2:end);
+        %assert(max(max(abs(delta_ode)))<1e-10)
 
-        if unsafe
-            disp('Unsafe ODE; ignoring non-regular values in numeric test')
-            delta_oder(isnan(delta_oder)) = 0;
-            delta_oder(isinf(delta_oder)) = 0;
+        if ~isempty(delta_daer)
+          assert(max(max(abs(delta_daer)))<1e-10)
         end
 
+        delta_oder = FD(xr,1:end-1)-rhsr_model(:,2:end);
         assert(max(max(abs(delta_oder)))<1e-10)
+
+        if check_ode
+            model.ode_expl;
+
+
+            [ode_r_expl,xr,zr,unsafe] = model.ode_r_expl;
+
+            ode_r_expl
+
+            nxr = numel(xr);
+            nzr = numel(zr);
+
+            rhsr_model = zeros(nxr,numel(ts)-1);
+
+            FD = (X(:,2:end)-X(:,1:end-1))/dt;
+
+            for i=1:numel(ts)-1
+                [rhs] = ode_r_expl(X(xr,i),U(:,i),P,0,ts(i));
+                rhsr_model(:,i) = full(rhs);
+            end
+
+            % trapezoidal
+            % delta_oder = FD(xr,1:end-1)-full((rhsr_model(:,1:end-1)+rhsr_model(:,2:end))/2);
+            delta_oder = FD(xr,1:end-1)-rhsr_model(:,2:end);
+
+            if unsafe
+                disp('Unsafe ODE; ignoring non-regular values in numeric test')
+                delta_oder(isnan(delta_oder)) = 0;
+                delta_oder(isinf(delta_oder)) = 0;
+            end
+
+            assert(max(max(abs(delta_oder)))<1e-10)
+        end
+    end
+    
+    if integration_check
+        [dae_r_expl,xr,zr] = model.dae_r_expl;
+        nxr = numel(xr);
+        nzr = numel(zr);
+
+        Xtraj = zeros(nxr,numel(ts));
+        Ztraj = zeros(nzr,numel(ts));
+
+        Xtraj(:,1) = X(xr,1);
+        Ztraj(:,1) = Z(zr,1);
+
+        %xn = x+dt*f(xn,zn)
+
+        xnext = SX.sym('xnext',nxr);
+        znext = SX.sym('znext',nzr);
+        tnext = SX.sym('t');
+
+        [rhs,res] = dae_r_expl(xnext,znext,u,p,q,tnext);
+        rf = Function('rf',{[xnext;znext],x(xr),u,p,q,tnext},{[xnext-(x(xr)+dt*rhs);res]});
+        rf = rootfinder('rf','newton',rf,struct('max_iter',max_iter));
+
+        for i=1:numel(ts)-1
+          % This is odd: Simscape seems to take U(:,i+1) here instead of U(:,i)
+          sol = rf([Xtraj(:,i);Ztraj(:,i)],Xtraj(:,i),U(:,i+1),P,0,ts(i+1));
+          sol = full(sol);
+          Xtraj(:,i+1) = sol(1:nxr);
+          Ztraj(:,i+1) = sol(nxr+1:end);
+        end
+
+        assert(max(max(abs(X(xr,:)-Xtraj)))<1e-9)
     end
     %
     close_system(model_file_name, 0);
