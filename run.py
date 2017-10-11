@@ -207,7 +207,7 @@ class MatlabExpressionGenerator(CommonExpressionGenerator):
         return '%s %s %s' % (lval_str, node.op, rval_str)
 
   def visit_FuncCall(self, n):
-    m = {"fabs": "abs","pmf_get_inf":"inf"}
+    m = {"fabs": "abs","pmf_get_inf":"inf","pmf_sqrt":"sqrt"}
     if to_c(n.name) in m.keys():
       fref = self._parenthesize_unless_simple(n.name)
       return m[to_c(n.name)]+'(' + self.visit(n.args) + ')'
