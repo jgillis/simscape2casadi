@@ -70,7 +70,7 @@ matrices = defaultdict(Sparsity)
 codes = {}
 codes_nodes = {}
 
-code_names = ["m","a","b","y","dxy","f","tduf","tdxf","r","mode"]
+code_names = ["m","a","b","y","dxy","f","tduf","tdxf","r","mode","dp_r"]
 
 
 
@@ -412,6 +412,8 @@ class MetaDataVisitor(c_ast.NodeVisitor):
              metadata["output_names"].append(var_name)
          if node.lvalue.field.name=="mNumModes":
            metadata["n_modes"]=int(node.rvalue.value)
+         if node.lvalue.field.name=="mNumRealDerivedParameters":
+           metadata["ndp"]=int(node.rvalue.value)
     except:
       pass
 class FuncDefVisitor(c_ast.NodeVisitor):
@@ -446,8 +448,9 @@ class FuncDefVisitor(c_ast.NodeVisitor):
             sp.mIr = fields["mIr"]
             
 
-        if len(names)==2 and names[0]=="ds" and names[1] in code_names: 
-          n = names[1]
+        names_remainder = "_".join(names[1:])
+        if len(names)>=2 and names[0]=="ds" and names_remainder in code_names: 
+          n = names_remainder
           type = "double"
           if n in ["mode","f"]:
             type = "SX"
@@ -514,7 +517,7 @@ for k in matrices:
 
 map_args = {"mode":["arg_x","arg_u","args_p","args_q","args_t"],"f":["arg_x","arg_u","args_p","args_q","args_t"],"update_i":["args_x","args_q","args_i"]}
 map_args_default = ["args_p"]
-map_label_sys = {"arg_x": "mX","arg_u": "mU","args_p":"mDP_R","args_t":"mT","args_q":"mQ"}
+map_label_sys = {"arg_x": "mX","arg_u": "mU","args_p":"mP_R","args_t":"mT","args_q":"mQ"}
 
 map_extra_body = {}
 
@@ -524,7 +527,7 @@ constructor.append("self.mmode_names = {" + str(metadata["mmode_names"])[1:-1] +
 constructor.append("self.variable_names = {" + str(metadata["variable_names"])[1:-1] + "};")
 constructor.append("self.input_names = {" + str(metadata["input_names"])[1:-1] + "};")
 constructor.append("self.output_names = {" + str(metadata["output_names"])[1:-1] + "};")
-
+constructor.append("self.ndp = " + str(metadata["ndp"]) + ";")
 def get_system_input_var_name(node):
   for e in node.decl.type.args.params:
     if "NeDynamicSystemInput" in e.type.type.type.names:
@@ -552,6 +555,10 @@ for k in codes:
   if k in ["f"]:
     methods.append("  " + get_system_input_var_name(node)+".mM.mX = self.mode("+ ",".join(map_args["mode"])+");\n")
 
+  if k=="dp_r":
+    methods.append("  out.mX = casadi.SX.zeros(self.ndp,1);")
+  if k!="dp_r":
+    methods.append("  " + get_system_input_var_name(node) + ".mDP_R.mX = self.dp_r(args_p);")
   if k in matrices:
     methods.append("  out.mX = casadi.SX.zeros(nnz(self.sp_"+ k+ "),1);")
  
@@ -574,6 +581,7 @@ with open(model_name+".m","w") as f:
       parameter_names
       mmode_names
       nm
+      ndp
     end
     
     methods

@@ -44,9 +44,9 @@ models = {...
           '../models/R2016b/fail_driveline_springdamper_flex',...
           '../models/R2016b/driveline_springdamper_LUT',...
           '../models/R2016b/driveline_springdamper_constant',...
-          '../models/proprietary/R2016b/PMA/DiskClutch_Inertia_New'};
+          '../models/proprietary/R2016b/PMA/DiskClutch_Inertia_New',...
+          '../models/proprietary/R2016b/FM/smallDrivelineSimScape_oscSpring_flex'};
        %   '../models/R2016b/proprietary/FM/smallDrivelineSimScape_oscSpring_flex'};
-          %'../models/R2016b/driveline_springdamper_LUT'};
           % '../models/R2016b/proprietary/PMA/DiskClutch_Inertia_New'};
          % %'../models/R2016b/driveline_springdamper_clutch'};%,...
           %'../models/R2016b/proprietary/FM/DCT_v_0_1'};%,...
@@ -63,13 +63,6 @@ for model_file_c=models
     disp(['model: ' model_file])
     [path,model_file_name,ext] = fileparts(model_file);
     
-    load_system(model_file);
-
-    % Open simulink model
-
-    cs = getActiveConfigSet(gcs);
-
-    Tend = eval(cs.get_param('StopTime'));
     eval_check = true;
     integration_check = true;
     skip_ode = false;
@@ -79,6 +72,15 @@ for model_file_c=models
         run([model_file '_config.m'])
     end
     assert(integration_check || eval_check);
+    
+    load_system(model_file);
+
+    % Open simulink model
+
+    cs = getActiveConfigSet(gcs);
+
+    Tend = eval(cs.get_param('StopTime'));
+
 
     N = ceil(Tend/Ts);
 
