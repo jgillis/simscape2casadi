@@ -422,7 +422,7 @@ class MetaDataVisitor(c_ast.NodeVisitor):
        if n.name is not None and "s_constant_table" in n.name:
           data = []
           for e in n.init.exprs:
-            data.append(float(e.value))
+            data.append(float(to_c(e)))
           metadata["s_constant_table"][n.name] = data
 
   def visit_Assignment(self, node):
