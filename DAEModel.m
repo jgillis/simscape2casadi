@@ -403,9 +403,10 @@ classdef DAEModel
                    elc = find(sum(patt(A),1))';
                    elci = find(~sum(patt(A),1))';
                    A = A(:,elc);
+                   
+                   assert(size(A,1)==size(A,2));
  
                    zsol = A\(substitute(-F(nx+elr),z(elc),0)+M(nx+elr,1:nx)*dx);
-
                    e = substitute(M*[dx;zeros(nz,1)]-F,z(elc),zsol);
 
                    M = jacobian(e,dx);
