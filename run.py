@@ -546,9 +546,9 @@ for k in matrices:
       nrow=sp.rows,ncol=sp.cols,colind=colind,row=row))
 
 
-map_args = {"mode":["arg_x","arg_u","args_p","args_q","args_t"],"f":["arg_x","arg_u","args_p","args_q","args_t"],"update_i":["args_x","args_q","args_i"]}
+map_args = {"mode":["arg_x","arg_u","args_p","args_t","args_q","args_w","args_s"],"f":["arg_x","arg_u","args_p","args_t","args_q","args_w","args_s"],"update_i":["args_x","args_q","args_i"]}
 map_args_default = ["args_p"]
-map_label_sys = {"arg_x": "mX","arg_u": "mU","args_p":"mP_R","args_t":"mT","args_q":"mQ"}
+map_label_sys = {"arg_x": "mX","arg_u": "mU","args_p":"mP_R","args_t":"mT","args_q":"mQ","args_w":"mW","args_s":"mS"}
 
 map_extra_body = {}
 
@@ -560,6 +560,8 @@ constructor.append("self.input_names = {" + str(metadata["input_names"])[1:-1] +
 constructor.append("self.output_names = {" + str(metadata["output_names"])[1:-1] + "};")
 constructor.append("self.ndp = " + str(metadata["ndp"]) + ";")
 
+constructor.append("self.nw = 0;")
+constructor.append("self.ns = 1;")
 
 constructor.append("self.extra = struct(" + ",".join(["'"+ k+"'"+","+str(v) for k,v in metadata["mTable"].items()]) + ");")
 def get_system_input_var_name(node):
@@ -617,6 +619,8 @@ with open(model_name+".m","w") as f:
       nm
       ndp
       extra
+      nw
+      ns
     end
     
     methods
