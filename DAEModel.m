@@ -24,6 +24,32 @@ SOFTWARE.
 classdef DAEModel
     %UNTITLED Summary of this class goes here
     %   Detailed explanation goes here
+    %
+    % variables:
+    %
+    % x -- differential states
+    % z -- algebraic states
+    % u -- controls
+    % p -- parameters
+    % t -- time
+    % q -- currenntly not in use; pass 0
+    % w -- delay pipeline
+    % s -- start time of simulation?
+    %
+    %
+    % Delay:
+    %
+    % Delays are describe by a nw-vector-valued delay pipeline
+    %
+    % Each entry in the delay pipeline is treated separately.
+    % More information baout each entry is obtained from a couple of helper
+    % functions, which are also nw-vector-valued:
+    %
+    %  del_t(p)        delay length [s]
+    %  del_tmax(p)     maximum delay length [s] 
+    %  del_v(x,u,p,t)  input of the delay pipeline
+    %  del_v0(p)       output of the delay pipeline when teh input hasn't
+    %                  reached the output yet
     
     properties
     end
@@ -350,6 +376,9 @@ classdef DAEModel
             in3 = p;
             U1 = u;
             P1 = p;
+            W1 = w;
+            S1 = s;
+            in6 = w;
             temp;
             
             M = matlabFunction(M,'Vars',{XZ,U,P,t_mupad,Q,W,S},'File','temp');
@@ -371,6 +400,9 @@ classdef DAEModel
             in3 = p;
             U1 = u;
             P1 = p;
+            W1 = w;
+            S1 = s;
+            in6 = w;
             temp;
 
             %Mcopy = SX(M);

@@ -70,7 +70,7 @@ matrices = defaultdict(Sparsity)
 codes = {}
 codes_nodes = {}
 
-code_names = ["m","a","b","y","dxy","f","tduf","tdxf","r","mode","dp_r"]
+code_names = ["m","a","b","y","dxy","f","tduf","tdxf","r","mode","dp_r","del_v","del_v0","del_tmax","del_t"]
 
 
 
@@ -392,7 +392,7 @@ def rvalue_to_c(node):
   return generator.visit(node)
 
 
-metadata = {"variable_names": [],"input_names":[],"output_names":[],"parameter_names":[],"mmode_names":[],"n_modes":0,"s_constant_table":{},"mTable":{}}
+metadata = {"variable_names": [],"input_names":[],"output_names":[],"parameter_names":[],"mmode_names":[],"n_modes":0,"s_constant_table":{},"mTable":{},"nw":0}
 class MetaDataVisitor(c_ast.NodeVisitor):
 
   def visit_Decl(self, n, no_type=False):
@@ -442,6 +442,8 @@ class MetaDataVisitor(c_ast.NodeVisitor):
            metadata["n_modes"]=int(node.rvalue.value)
          if node.lvalue.field.name=="mNumRealDerivedParameters":
            metadata["ndp"]=int(node.rvalue.value)
+         if node.lvalue.field.name=="mNumDelays":
+           metadata["nw"]=int(node.rvalue.value)
          if "mTable" in node.lvalue.field.name:
            metadata["mTable"][node.lvalue.field.name] = metadata["s_constant_table"][node.rvalue.name]
     except:
@@ -546,7 +548,9 @@ for k in matrices:
       nrow=sp.rows,ncol=sp.cols,colind=colind,row=row))
 
 
-map_args = {"mode":["arg_x","arg_u","args_p","args_t","args_q","args_w","args_s"],"f":["arg_x","arg_u","args_p","args_t","args_q","args_w","args_s"],"update_i":["args_x","args_q","args_i"]}
+standard = ["arg_x","arg_u","args_p","args_t"]
+
+map_args = {"mode":standard+["args_q","args_w","args_s"],"f":standard+["args_q","args_w","args_s"],"update_i":["args_x","args_q","args_i"],"del_v":standard}
 map_args_default = ["args_p"]
 map_label_sys = {"arg_x": "mX","arg_u": "mU","args_p":"mP_R","args_t":"mT","args_q":"mQ","args_w":"mW","args_s":"mS"}
 
@@ -559,8 +563,7 @@ constructor.append("self.variable_names = {" + str(metadata["variable_names"])[1
 constructor.append("self.input_names = {" + str(metadata["input_names"])[1:-1] + "};")
 constructor.append("self.output_names = {" + str(metadata["output_names"])[1:-1] + "};")
 constructor.append("self.ndp = " + str(metadata["ndp"]) + ";")
-
-constructor.append("self.nw = 0;")
+constructor.append("self.nw = " + str(metadata["nw"]) + ";")
 constructor.append("self.ns = 1;")
 
 constructor.append("self.extra = struct(" + ",".join(["'"+ k+"'"+","+str(v) for k,v in metadata["mTable"].items()]) + ");")
@@ -590,7 +593,8 @@ for k in codes:
     methods.append("  out.mX = casadi.SX.zeros(self.nm,1);")
   if k in ["f"]:
     methods.append("  " + get_system_input_var_name(node)+".mM.mX = self.mode("+ ",".join(map_args["mode"])+");\n")
-
+  if k=="del_v":
+    methods.append("  out.mX = casadi.SX.zeros(self.nw,1);")
   if k=="dp_r":
     methods.append("  out.mX = casadi.SX.zeros(self.ndp,1);")
   if k!="dp_r":
