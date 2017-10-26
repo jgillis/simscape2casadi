@@ -14,7 +14,7 @@ warning('off','physmod:simscape:compiler:sli:logging:CodeGenNotSupported')
 addpath('..')
 
 % Cleanup if test folder is in a dirty state
-if exist('slprj','dir')
+if exist('slprj','dir')==1
   rmdir('slprj','s')
 end
 d=dir;
