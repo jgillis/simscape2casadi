@@ -142,7 +142,7 @@ classdef DAEModel
           if is_empty(res)
               unsafe = 0;
           else
-            assert(~any(cell2mat(which_depends(res, z, 2, false))))
+            assert(~any(which_depends(res, z, 2, false)))
               J = jacobian(res,z);
 
               unsafe = ~isempty(strfind(str(J),'?'));
@@ -175,7 +175,7 @@ classdef DAEModel
           if is_empty(res)
               unsafe = 0;
           else
-            assert(~any(cell2mat(which_depends(res, z, 2, false))))
+            assert(~any(which_depends(res, z, 2, false)))
             J = jacobian(res,z);
             unsafe = ~isempty(strfind(str(J),'?'));
             zsol = -J\substitute(res,z,0);
@@ -221,7 +221,7 @@ classdef DAEModel
             patt = @(A) full(DM(sparsity(sparsify(SX(A))),1));
 
             candidates = sum(patt(A),2)==1 & sum(patt(A(:,1:nx)),2)==0;
-            candidates = candidates & ~cell2mat(which_depends(f_expr,z,1,true))';
+            candidates = candidates & ~which_depends(f_expr,z,1,true)';
             
             e_triv = find(candidates(nx+1:end));
             if ~isempty(e_triv)
