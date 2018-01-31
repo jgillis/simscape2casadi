@@ -253,7 +253,7 @@ class SimScapeExporter(MatlabExpressionGenerator):
     MatlabExpressionGenerator.__init__(self,*args,**kwargs)
 
   def visit_FuncCall(self, n):
-    if "tlu2_1d_linear_linear_value"==to_c(n.name):
+    if to_c(n.name).startswith("tlu2"):
         fref = self._parenthesize_unless_simple(n.name)
         return self.visit(n.args.exprs[0]) + " = " + "self." + fref + '(' + self.visit(n.args.exprs[1]) + ')'
     else:

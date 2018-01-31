@@ -38,6 +38,16 @@ classdef SimscapeCasadi
       function r = tlu2_1d_linear_linear_value(in)
         r=SimscapeCasadi.pw_lin(in{3},in{1},in{2});
       end
+      function r = tlu2_2d_linear_linear_value(in)
+        % The SX implementation
+        M = reshape(in{3},numel(in{1}),numel(in{2}));
+        res = cell(1,numel(in{2}));
+        for i=1:numel(in{2})
+            res{i} = SimscapeCasadi.pw_lin(in{4},in{1},M(:,i));
+        end
+        res = [res{:}];
+        r = SimscapeCasadi.pw_lin(in{5},in{2},res);
+      end
     
       function y=pw_lin(t, tval, val)
         import casadi.*
