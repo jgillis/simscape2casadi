@@ -550,7 +550,7 @@ for k in matrices:
 
 standard = ["arg_x","arg_u","args_p","args_t"]
 
-map_args = {"mode":standard+["args_q","args_w","args_s"],"f":standard+["args_q","args_w","args_s"],"update_i":["args_x","args_q","args_i"],"del_v":standard}
+map_args = {"mode":standard+["args_q","args_w","args_s"],"f":standard+["args_q","args_w","args_s"],"update_i":["args_x","args_q","args_i"],"del_v":standard, "y": standard}
 map_args_default = ["args_p"]
 map_label_sys = {"arg_x": "mX","arg_u": "mU","args_p":"mP_R","args_t":"mT","args_q":"mQ","args_w":"mW","args_s":"mS"}
 
@@ -585,7 +585,7 @@ for k in codes:
   methods.append("function ret = {name}({args})\n".format(name=k,args=",".join(["self"]+args)))
   for a in args:
     methods.append(get_system_input_var_name(node)+".%s.mX = casadi.SX(" % map_label_sys[a]+ a +");\n")
-  if k in ["f"]:
+  if k in ["f","y"]:
     methods.append("  out.mX = casadi.SX.zeros(size(self.sp_a,1));")
   if k in ["mode","f"]:
     methods.append("  out.mU = casadi.SX.zeros(size(self.sp_b,2));")

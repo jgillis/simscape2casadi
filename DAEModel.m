@@ -92,6 +92,7 @@ classdef DAEModel
           E = self.a(p) * [x;z] + self.b(p)*u + self.f([x;z],u,p,t,q,w,s);
           M = self.m(p);
           M = M(1:self.nx,1:self.nx);
+          Y = self.y([x;z],u,p,t);
           out = Function('E',{x,z,u,p,t,q,w,s},{M\E(1:self.nx),E(self.nx+1:end)},{'x','z','u','p','t','q','w','s'},{'ode','alg'});
         end
         function [out,xr,zr] = dae_r_expl(self)
