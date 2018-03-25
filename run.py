@@ -158,6 +158,8 @@ def to_c(node):
 def from_constant(n):
      if n.value.endswith("UL"):
        return n.value[:-2]
+     elif n.value.endswith("ULL"):
+       return n.value[:-3]
      else:
        return n.value
 
