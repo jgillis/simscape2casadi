@@ -32,7 +32,7 @@ classdef DAEModel
     % u -- controls
     % p -- parameters
     % t -- time
-    % q -- currenntly not in use; pass 0
+    % q -- currently not in use; pass 0
     % w -- delay pipeline
     % s -- start time of simulation?
     %
@@ -42,13 +42,13 @@ classdef DAEModel
     % Delays are describe by a nw-vector-valued delay pipeline
     %
     % Each entry in the delay pipeline is treated separately.
-    % More information baout each entry is obtained from a couple of helper
+    % More information about each entry is obtained from a couple of helper
     % functions, which are also nw-vector-valued:
     %
     %  del_t(p)        delay length [s]
     %  del_tmax(p)     maximum delay length [s] 
     %  del_v(x,u,p,t)  input of the delay pipeline
-    %  del_v0(p)       output of the delay pipeline when teh input hasn't
+    %  del_v0(p)       output of the delay pipeline when the input hasn't
     %                  reached the output yet
     
     properties
@@ -105,7 +105,7 @@ classdef DAEModel
           t = SX.sym('t');
           q = SX.sym('q',self.nq);
           w = SX.sym('w',self.nw);
-          s = SX.sym('w',self.ns);
+          s = SX.sym('s',self.ns);
           
           [M,rhs] = Fun(x(xr),z(zr),u,p,t,q,w,s);
           
