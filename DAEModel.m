@@ -88,6 +88,8 @@ classdef DAEModel
           q = SX.sym('q',self.nq);
           w = SX.sym('w',self.nw);
           s = SX.sym('s',self.ns);
+          
+          % M [dot(x);dot(z)] = E(x,z,u,p,t,q,w,s)
 
           E = self.a(p) * [x;z] + self.b(p)*u + self.f([x;z],u,p,t,q,w,s);
           M = self.m(p);
@@ -218,12 +220,20 @@ classdef DAEModel
             B = self.b(p);
 
             f_expr = self.f([x;z],u,p,t,q,w,s);
-            
+
             patt = @(A) full(DM(sparsity(sparsify(SX(A))),1));
+            
+            % M [dot(x);dot(z)] = E
+
+            % Find trivial algebraic variables: E_(nx+i) = z_i + b_j u + f_(nx+i)(not on z_i)
+
+            no_dependence = ~which_depends(f_expr,z,1,true)';
+            assert(~depends_on(f_expr(find(no_dependence)),z));
 
             candidates = sum(patt(A),2)==1 & sum(patt(A(:,1:nx)),2)==0;
-            candidates = candidates & ~which_depends(f_expr,z,1,true)';
-            
+            candidates = candidates & no_dependence;
+
+            % z-indices of 
             e_triv = find(candidates(nx+1:end));
             if ~isempty(e_triv)
                 disp('Eliminating trivial algebraic variables')
@@ -231,12 +241,11 @@ classdef DAEModel
 
                 [col,~] = find(patt(A(nx+e_triv,:))');
                 z_triv = col-nx;
-                z_val = -f_expr(nx+e_triv);
+                z_val = -f_expr(nx+e_triv)-B(nx+e_triv,:)*u;
+                
                 for i=1:numel(e_triv)
-                   z_val = z_val/A(nx+e_triv(i),nx+z_triv(i)); 
+                   z_val(i) = z_val(i)/A(nx+e_triv(i),nx+z_triv(i)); 
                 end
-
-
 
                 c = (1:nx+nz);
                 c(col) = [];
