@@ -205,7 +205,7 @@ classdef DAEModel
             p = SX.sym('p',np);
             t = SX.sym('t');
             q = SX.sym('q',nq);
-            w = SX.sym('q',nw);
+            w = SX.sym('w',nw);
             s = SX.sym('s',ns);
 
             pp = p;
