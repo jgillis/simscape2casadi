@@ -305,7 +305,7 @@ for model_file_c=models
 
         [rhs,res,y] = dae_r_expl(xnext,znext,u,p,tnext,q,w,s);
         rf_res = Function('rf',{[xnext;znext],x(xr),u,p,tnext,q,w,s},{[xnext-(x(xr)+dt*rhs);res]});
-        outputf = Function('outputf',{xnext,znext,u,p,t,q,w,s},{y});
+        outputf = Function('outputf',{xnext,znext,u,p,tnext,q,w,s},{y});
         rf = rootfinder('rf','newton',rf_res,struct('max_iter',max_iter));
         %rf = rootfinder('rf','nlpsol',rf_res,struct('nlpsol','ipopt','nlpsol_options',struct('ipopt',struct('print_level',0),'print_time',false)));
 
