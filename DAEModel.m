@@ -95,7 +95,8 @@ classdef DAEModel
           M = self.m(p);
           M = M(1:self.nx,1:self.nx);
           Y = self.y([x;z],u,p,t);
-          out = Function('E',{x,z,u,p,t,q,w,s},{M\E(1:self.nx),E(self.nx+1:end)},{'x','z','u','p','t','q','w','s'},{'ode','alg'});
+          
+          out = Function('E',{x,z,u,p,t,q,w,s},{M\E(1:self.nx),E(self.nx+1:end),Y},{'x','z','u','p','t','q','w','s'},{'ode','alg','y'});
         end
         function [out,xr,zr] = dae_r_expl(self)
           import casadi.*
@@ -109,7 +110,7 @@ classdef DAEModel
           w = SX.sym('w',self.nw);
           s = SX.sym('s',self.ns);
           
-          [M,rhs] = Fun(x(xr),z(zr),u,p,t,q,w,s);
+          [M,rhs,y] = Fun(x(xr),z(zr),u,p,t,q,w,s);
           
 
           nxr = numel(xr);
@@ -124,7 +125,7 @@ classdef DAEModel
                  assert(is_regular(r(i)), 'M not invertible; may happen when you connect flexible element in series without inertia inbetween')
              end
           end
-          out = Function('E',{x(xr),z(zr),u,p,t,q,w,s},{r,res},{'xr','zr','u','p','t','q','w','s'},{'ode','alg'});
+          out = Function('E',{x(xr),z(zr),u,p,t,q,w,s},{r,res,y},{'xr','zr','u','p','t','q','w','s'},{'ode','alg','y'});
         end
         function [out,unsafe] = ode_expl(self)
           import casadi.*
@@ -139,7 +140,7 @@ classdef DAEModel
           q = dae_in{6};
           w = dae_in{7};
           s = dae_in{8};
-          [rhs,res] = dae(dae_in{:});
+          [rhs,res,y] = dae(dae_in{:});
           
           % Check if res in linear in z
           if is_empty(res)
@@ -152,9 +153,10 @@ classdef DAEModel
 
               zsol = -J\substitute(res,z,0);
               rhs = substitute(rhs,z,zsol);
+              y = substitute(y,z,zsol);
           end
           
-          out = Function('E',{x,u,p,t,q,w,s},{rhs},char('x','u','p','t','q','w','s'),char('rhs'));
+          out = Function('E',{x,u,p,t,q,w,s},{rhs,y},char('x','u','p','t','q','w','s'),{'rhs','y'});
         end
         function [out,xr,zr,unsafe] = ode_r_expl(self)
           import casadi.*
@@ -170,7 +172,7 @@ classdef DAEModel
           w = dae_in{7};
           s = dae_in{8};
           
-          [rhs,res] = dae(dae_in{:});
+          [rhs,res,y] = dae(dae_in{:});
           
           % Check if res in linear in z
           size(res)
@@ -183,9 +185,10 @@ classdef DAEModel
             unsafe = ~isempty(strfind(str(J),'?'));
             zsol = -J\substitute(res,z,0);
             rhs = substitute(rhs,z,zsol);
+            y = substitute(y,z,zsol);
           end
           
-          out = Function('E',{x,u,p,t,q,w,s},{rhs},{'x','u','p','t','q','w','s'},{'rhs'});
+          out = Function('E',{x,u,p,t,q,w,s},{rhs,y},{'x','u','p','t','q','w','s'},{'rhs','y'});
         end
         function [Fun, xr, zr] = Fr(self)
             model = Model;
@@ -209,6 +212,9 @@ classdef DAEModel
             q = SX.sym('q',nq);
             w = SX.sym('w',nw);
             s = SX.sym('s',ns);
+            
+            x_old = SX(x);
+            z_old = SX(z);
 
             pp = p;
 
@@ -247,6 +253,8 @@ classdef DAEModel
                    z_val(i) = z_val(i)/A(nx+e_triv(i),nx+z_triv(i)); 
                 end
 
+                z_old(z_triv) = z_val;
+                                
                 c = (1:nx+nz);
                 c(col) = [];
                 A = [A(1:nx,:);A(nx+e_trivi,:)];
@@ -290,11 +298,38 @@ classdef DAEModel
             
 
             [newEqs,newVars,R] = reduceDAEIndex(eqs,vars);
-            [newEqs,newVars,~] = reduceRedundancies(newEqs,newVars);
-
+            %assert(numel(R)==0)
+            [newEqs,newVars,R] = reduceRedundancies(newEqs,newVars);
+            
+            replaced_variables = [R.constantVariables;R.replacedVariables];
+            
+            
+            replacement_x = [];
+            replacement_z = [];
+            
+            skip = [];
+            
+            replaced_labels = replaced_variables(:,1);
+            for i=1:numel(replaced_labels)
+              label = char(replaced_labels(i));
+              label = label(1:end-3);
+              var_type = label(1);
+              var_index = str2num(label(3:end));
+              if (var_type=='x')
+                replacement_x = [replacement_x;var_index+1];
+              elseif (var_type=='z')
+                replacement_z = [replacement_z;var_index+1];
+              else
+                skip = [skip;i];
+              end
+            end
+            
+            replaced_variables = replaced_variables(:,2);
+            replaced_variables(skip,:) = [];
+            
             fE_mupad=[];
             fD_mupad = [];
-            deriv_info = DAEModel.collect_derivatives(newEqs);
+            deriv_info = DAEModel.collect_derivatives([newEqs;replaced_variables]);
             fE_casadi=cell(length(deriv_info),1);
             for i=1:length(deriv_info)
                funname = deriv_info{i}{1};
@@ -334,7 +369,7 @@ classdef DAEModel
             S = sym('S',[ns,1]);  
             F = subs(F,[newVars;vertcat(u_mupad{:});vertcat(p_mupad{:});vertcat(q_mupad{:});vertcat(w_mupad{:});vertcat(s_mupad{:})],[XZ;U;P;Q;W;S]);
             M = subs(M,[newVars;vertcat(u_mupad{:});vertcat(p_mupad{:});vertcat(q_mupad{:});vertcat(w_mupad{:});vertcat(s_mupad{:})],[XZ;U;P;Q;W;S]);
-
+            replaced_variables = subs(replaced_variables,[newVars;vertcat(u_mupad{:});vertcat(p_mupad{:});vertcat(q_mupad{:});vertcat(w_mupad{:});vertcat(s_mupad{:})],[XZ;U;P;Q;W;S]);
 
             names_newVars = cellfun(@char,num2cell(newVars),'uni',false);
             names_x = cellfun(@char,x_mupad,'uni',false);
@@ -415,6 +450,36 @@ classdef DAEModel
             in6 = w;
             temp;
 
+            R = matlabFunction(replaced_variables,'Vars',{XZ,U,P,t_mupad,Q,W,S},'File','temp');
+            R = fileread('temp.m');
+            i = strfind(R,'%');
+            R = R(i(1):end);
+
+            fileID = fopen('temp.m','w');
+            for i=1:length(f_mupad)
+                fprintf(fileID,'f%d=f_casadi{%d};',i,i);
+            end
+            
+            fwrite(fileID,R);
+            fclose(fileID);
+            rehash;
+            
+            in1 = [x(xr);z(zr)];
+            in2 = u;
+            in3 = p;
+            U1 = u;
+            P1 = p;
+            W1 = w;
+            S1 = s;
+            in6 = w;
+            temp;
+            
+            if ~isempty(replacement_x)
+              x_old(replacement_x) = replaced_variables(1:numel(replacement_x));
+            end
+            if ~isempty(replacement_z)
+              z_old(replacement_z) = replaced_variables(numel(replacement_x)+1:end);
+            end
             %Mcopy = SX(M);
             %Mcopy(1:length(xr),1:length(xr))=0;
             %assert(nnz(sparsify(Mcopy))==0,'Mass matrix has entries outside of 1:nxr')
@@ -465,6 +530,9 @@ classdef DAEModel
  
                    zsol = A\(substitute(-F(nx+elr),z(elc),0)+M(nx+elr,1:nx)*dx);
                    e = substitute(M*[dx;zeros(nz,1)]-F,z(elc),zsol);
+                   
+                   x_old = substitute(x_old,z(elc),zsol);
+                   z_old = substitute(z_old,z(elc),zsol);
 
                    M = jacobian(e,dx);
                    F = -substitute(e,dx,0);
@@ -483,11 +551,11 @@ classdef DAEModel
                     break
                 end
             end
+            
+            Y = self.y([x_old;z_old],u,p,t);
 
-            Fun = Function('F',{x,z,u,p,t,q,w,s},{M,F},{'xr','zr','u','p','t','q','w','s'},{'M','F'});
-            
-            
-                        
+            Fun = Function('F',{x,z,u,p,t,q,w,s},{M,F,Y},{'xr','zr','u','p','t','q','w','s'},{'M','F','y'});
+              
             [~,zr] = find(patt(jacobian(z,z_orig)));
             [~,xr] = find(patt(jacobian(x,x_orig)));
             

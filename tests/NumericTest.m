@@ -145,6 +145,7 @@ for model_file_c=models
     nq = model.nq;
     nw = model.nw;
     ns = model.ns;
+    ny = model.ny;
     disp('Unreduced DAE')
     fprintf('#diff states %d\n', nx);
     fprintf('#algebraic states %d\n', nz);
@@ -197,7 +198,13 @@ for model_file_c=models
     for i=1:model.np
        P(i) = eval(model.parameter_names{i});
     end
-
+    % Outputs
+    Y = zeros(ny,numel(ts));
+    for i=1:ny
+       data = eval(['simlog.' model.output_names{i}]);
+       values = data.series.values;
+       Y(i,:) = values;
+    end
     if eval_check
         dae_expl = model.dae_expl;
 
@@ -209,17 +216,21 @@ for model_file_c=models
         rhs_model = zeros(nx,numel(ts)-1);
         rhsr_model = zeros(nxr,numel(ts)-1);
 
+        y_model = zeros(ny,numel(ts)-1);
+        yr_model = zeros(ny,numel(ts)-1);
+
         FD = (X(:,2:end)-X(:,1:end-1))/dt;
 
         for i=1:numel(ts)-1
-            [rhs,res] = dae_expl(X(:,i),Z(:,i),U(:,i),P,ts(i),0,0,0);
+            [rhs,res,y] = dae_expl(X(:,i),Z(:,i),U(:,i),P,ts(i),0,0,0);
             delta_dae(:,i) = full(res);
             rhs_model(:,i) = full(rhs);
+            y_model(:,i) = full(y);
 
-
-            [rhs,res] = dae_r_expl(X(xr,i),Z(zr,i),U(:,i),P,ts(i),0,0,0);
+            [rhs,res,y] = dae_r_expl(X(xr,i),Z(zr,i),U(:,i),P,ts(i),0,0,0);
             delta_daer(:,i) = full(res);
             rhsr_model(:,i) = full(rhs);
+            yr_model(:,i) = full(y);
         end
 
         %if ~isempty(delta_dae)
@@ -234,6 +245,8 @@ for model_file_c=models
 
         delta_oder = FD(xr,1:end-1)-rhsr_model(:,2:end);
         assert(max(max(abs(delta_oder)))<1e-10)
+        assert(max(max(abs(Y(:,1:end-1)-y_model)))<1e-8)
+
 
         if check_ode
             model.ode_expl;
@@ -241,18 +254,18 @@ for model_file_c=models
 
             [ode_r_expl,xr,zr,unsafe] = model.ode_r_expl;
 
-            ode_r_expl
-
             nxr = numel(xr);
             nzr = numel(zr);
 
             rhsr_model = zeros(nxr,numel(ts)-1);
+            yr_model = zeros(ny,numel(ts)-1);
 
             FD = (X(:,2:end)-X(:,1:end-1))/dt;
 
             for i=1:numel(ts)-1
-                [rhs] = ode_r_expl(X(xr,i),U(:,i),P,ts(i),0,0,0);
+                [rhs,y] = ode_r_expl(X(xr,i),U(:,i),P,ts(i),0,0,0);
                 rhsr_model(:,i) = full(rhs);
+                yr_model(:,i) = full(y);
             end
 
             % trapezoidal
@@ -266,6 +279,7 @@ for model_file_c=models
             end
 
             assert(max(max(abs(delta_oder)))<1e-10)
+            assert(max(max(abs(Y(:,1:end-1)-yr_model)))<1e-8)
         end
     end
     
@@ -276,9 +290,11 @@ for model_file_c=models
 
         Xtraj = zeros(nxr,numel(ts));
         Ztraj = zeros(nzr,numel(ts));
+        Ytraj = zeros(ny,numel(ts));
 
         Xtraj(:,1) = X(xr,1);
         Ztraj(:,1) = Z(zr,1);
+
 
         %xn = x+dt*f(xn,zn)
 
@@ -286,20 +302,33 @@ for model_file_c=models
         znext = SX.sym('znext',nzr);
         tnext = SX.sym('t');
 
-        [rhs,res] = dae_r_expl(xnext,znext,u,p,tnext,q,w,s);
-        rf = Function('rf',{[xnext;znext],x(xr),u,p,tnext,q,w,s},{[xnext-(x(xr)+dt*rhs);res]});
-        rf = rootfinder('rf','newton',rf,struct('max_iter',max_iter));
+        [rhs,res,y] = dae_r_expl(xnext,znext,u,p,tnext,q,w,s);
+        rf_res = Function('rf',{[xnext;znext],x(xr),u,p,tnext,q,w,s},{[xnext-(x(xr)+dt*rhs);res]});
+        outputf = Function('outputf',{xnext,znext,u,p,t,q,w,s},{y});
+        rf = rootfinder('rf','newton',rf_res,struct('max_iter',max_iter));
+        %rf = rootfinder('rf','nlpsol',rf_res,struct('nlpsol','ipopt','nlpsol_options',struct('ipopt',struct('print_level',0),'print_time',false)));
 
+        disp(['integration_check'])
         for i=1:numel(ts)-1
           % This is odd: Simscape seems to take U(:,i+1) here instead of U(:,i)
-          sol = rf([Xtraj(:,i);Ztraj(:,i)],Xtraj(:,i),U(:,i+1),P,ts(i+1),0,0,0);
+          [sol] = rf([Xtraj(:,i);Ztraj(:,i)],Xtraj(:,i),U(:,i+1),P,ts(i+1),0,0,0);
+          
+          %err = norm(full(rf_res(sol, Xtraj(:,i),U(:,i+1),P,ts(i+1),0,0,0)));
+          % rf_res([Xtraj_orig(xr,i+1);Ztraj_orig(zr,i+1)], Xtraj_orig(:,i),U(:,i+1),P,ts(i+1),0,0,0)
+          %assert(err<1e-8);
           sol = full(sol);
           Xtraj(:,i+1) = sol(1:nxr);
           Ztraj(:,i+1) = sol(nxr+1:end);
         end
+        
+        for i=1:numel(ts)
+           Ytraj(:,i) = full(outputf(Xtraj(:,i),Ztraj(:,i),U(:,i),P,ts(i),0,0,0));
+        end
 
-        assert(max(max(abs(X(xr,:)-Xtraj)))<1e-9)
+        assert(max(max(abs(X(xr,1:i)-Xtraj(:,1:i))))<1e-8)
+        assert(max(max(abs(Y(:,1:i)-Ytraj(:,1:i))))<1e-8)
     end
+    
     %
     close_system(model_file_name, 0);
 

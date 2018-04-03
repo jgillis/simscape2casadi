@@ -587,8 +587,10 @@ for k in codes:
   methods.append("function ret = {name}({args})\n".format(name=k,args=",".join(["self"]+args)))
   for a in args:
     methods.append(get_system_input_var_name(node)+".%s.mX = casadi.SX(" % map_label_sys[a]+ a +");\n")
-  if k in ["f","y"]:
+  if k in ["f"]:
     methods.append("  out.mX = casadi.SX.zeros(size(self.sp_a,1));")
+  if k in ["y"]:
+    methods.append("  out.mX = casadi.SX.zeros(self.ny,1);")
   if k in ["mode","f"]:
     methods.append("  out.mU = casadi.SX.zeros(size(self.sp_b,2));")
   if k in ["mode"]:
