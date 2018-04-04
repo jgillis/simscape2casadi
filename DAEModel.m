@@ -301,14 +301,15 @@ classdef DAEModel
             %assert(numel(R)==0)
             [newEqs,newVars,R] = reduceRedundancies(newEqs,newVars);
             
-            replaced_variables = [R.constantVariables;R.replacedVariables];
+            replaced_variables = [R.constantVariables;R.replacedVariables]
             
             
             replacement_x = [];
             replacement_z = [];
             
-            skip = [];
-            
+            replaced_variables_x = [];
+            replaced_variables_z = [];
+
             replaced_labels = replaced_variables(:,1);
             for i=1:numel(replaced_labels)
               label = char(replaced_labels(i));
@@ -317,16 +318,15 @@ classdef DAEModel
               var_index = str2num(label(3:end));
               if (var_type=='x')
                 replacement_x = [replacement_x;var_index+1];
+                replaced_variables_x = [replaced_variables_x;replaced_variables(i,2)];
               elseif (var_type=='z')
                 replacement_z = [replacement_z;var_index+1];
-              else
-                skip = [skip;i];
+                replaced_variables_z = [replaced_variables_z;replaced_variables(i,2)];
               end
             end
             
-            replaced_variables = replaced_variables(:,2);
-            replaced_variables(skip,:) = [];
-            
+            replaced_variables = [replaced_variables_x;replaced_variables_z];
+
             fE_mupad=[];
             fD_mupad = [];
             deriv_info = DAEModel.collect_derivatives([newEqs;replaced_variables]);
@@ -367,9 +367,24 @@ classdef DAEModel
             Q = sym('Q',[nq,1]);
             W = sym('W',[nw,1]);
             S = sym('S',[ns,1]);  
+            unsafe = arrayfun(@(x) ~isempty(strfind(char(x),'diff')),F);
+            if any(unsafe)
+                warning('diff ignored')
+            end
             F = subs(F,[newVars;vertcat(u_mupad{:});vertcat(p_mupad{:});vertcat(q_mupad{:});vertcat(w_mupad{:});vertcat(s_mupad{:})],[XZ;U;P;Q;W;S]);
+            F(unsafe) = NaN;
+            unsafe = arrayfun(@(x) ~isempty(strfind(char(x),'diff')),M);
+            if any(unsafe)
+                warning('diff ignored')
+            end
             M = subs(M,[newVars;vertcat(u_mupad{:});vertcat(p_mupad{:});vertcat(q_mupad{:});vertcat(w_mupad{:});vertcat(s_mupad{:})],[XZ;U;P;Q;W;S]);
+            M(unsafe) = NaN;
+            unsafe = arrayfun(@(x) ~isempty(strfind(char(x),'diff')),replaced_variables);
+            if any(unsafe)
+                warning('diff ignored')
+            end
             replaced_variables = subs(replaced_variables,[newVars;vertcat(u_mupad{:});vertcat(p_mupad{:});vertcat(q_mupad{:});vertcat(w_mupad{:});vertcat(s_mupad{:})],[XZ;U;P;Q;W;S]);
+            replaced_variables(unsafe) = NaN;
 
             names_newVars = cellfun(@char,num2cell(newVars),'uni',false);
             names_x = cellfun(@char,x_mupad,'uni',false);
@@ -530,12 +545,14 @@ classdef DAEModel
  
                    zsol = A\(substitute(-F(nx+elr),z(elc),0)+M(nx+elr,1:nx)*dx);
                    e = substitute(M*[dx;zeros(nz,1)]-F,z(elc),zsol);
-                   
-                   x_old = substitute(x_old,z(elc),zsol);
-                   z_old = substitute(z_old,z(elc),zsol);
 
                    M = jacobian(e,dx);
                    F = -substitute(e,dx,0);
+                   
+                   zsol_no_dx = substitute(zsol,dx,M(1:nx,1:nx)\F(1:nx));
+                   
+                   x_old = substitute(x_old,z(elc),zsol_no_dx);
+                   z_old = substitute(z_old,z(elc),zsol_no_dx);
 
                    M = M([(1:nx)';(nx+elri)],:);
                    M = [M zeros(size(M,1),size(M,1)-size(M,2))];
