@@ -280,7 +280,9 @@ for model_file_c=models
             end
 
             assert(max(max(abs(delta_oder)))<1e-10)
-            assert(max(max(abs(Y(:,1:end-1)-yr_model)))<1e-8)
+            DY = Y(:,1:end-1)-yr_model;
+            DY(isnan(DY) | isinf(DY)) = 0;
+            assert(max(max(abs(DY)))<1e-8)
         end
     end
     
