@@ -69,6 +69,7 @@ for model_file_c=models
     integration_check = true;
     skip_ode = false;
     check_ode = true;
+    output_check = true;
     Ts = 0.01;    
     if exist([model_file '_config.m'])
         run([model_file '_config.m'])
@@ -282,7 +283,9 @@ for model_file_c=models
             assert(max(max(abs(delta_oder)))<1e-10)
             DY = Y(:,1:end-1)-yr_model;
             DY(isnan(DY) | isinf(DY)) = 0;
-            assert(max(max(abs(DY)))<1e-8)
+            if output_check
+              assert(max(max(abs(DY)))<1e-8)
+            end
         end
     end
     
@@ -329,7 +332,7 @@ for model_file_c=models
         end
 
         assert(max(max(abs(X(xr,1:i)-Xtraj(:,1:i))))<1e-8)
-        if ny>0
+        if ny>0 & output_check
           assert(max(max(abs(Y(:,1:i)-Ytraj(:,1:i))))<1e-8)
         end
     end
