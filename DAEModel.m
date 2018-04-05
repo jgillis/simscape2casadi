@@ -301,7 +301,7 @@ classdef DAEModel
             %assert(numel(R)==0)
             [newEqs,newVars,R] = reduceRedundancies(newEqs,newVars);
             
-            replaced_variables = [R.constantVariables;R.replacedVariables]
+            replaced_variables = [R.constantVariables;R.replacedVariables];
             
             
             replacement_x = [];

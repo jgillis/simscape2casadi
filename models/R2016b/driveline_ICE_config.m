@@ -1,1 +1,1 @@
-output_check = false;
+output_check = true;

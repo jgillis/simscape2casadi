@@ -40,14 +40,15 @@ models = {...
           '../models/R2016b/fail_driveline_mass',...
           '../models/R2016b/driveline_spring2',...
           '../models/R2016b/driveline_ICE',...
+          '../models/R2016b/driveline_ICE_fail2',...
           '../models/R2016b/fail_driveline_springdamper_flex',...
           '../models/R2016b/driveline_springdamper_LUT',...
           '../models/R2016b/driveline_springdamper_constant',...
-           '../models/R2016b/driveline_springdamper_torqueconv',...
+          '../models/R2016b/driveline_springdamper_torqueconv',...
            '../models/proprietary/R2016b/PMA/DiskClutch_Inertia_New',...
-           '../models/proprietary/R2016b/PMA/CamFollowerTest_2016b',...
            '../models/proprietary/R2016b/FM/smallDrivelineSimScape_oscSpring_flex',...
-           '../models/R2016b/driveline_springdamper_LUT2'}; 
+           '../models/R2016b/driveline_springdamper_LUT2',...
+           '../models/proprietary/R2016b/PMA/CamFollowerTest_2016b'}; 
          % %'../models/R2016b/driveline_springdamper_clutch'};%,...
           %'../models/R2016b/proprietary/FM/DCT_v_0_1'};%,...
 
@@ -201,8 +202,8 @@ for model_file_c=models
        P(i) = eval(model.parameter_names{i});
     end
     % Outputs
-    Y = zeros(ny,numel(ts));
-    for i=1:ny
+    Y = zeros(model.ny,numel(ts));
+    for i=1:model.ny
        data = eval(['simlog.' model.output_names{i}]);
        values = data.series.values;
        Y(i,:) = values;
@@ -235,11 +236,11 @@ for model_file_c=models
             yr_model(:,i) = full(y);
         end
 
-        %if ~isempty(delta_dae)
-        %  assert(max(max(abs(delta_dae)))<1e-10)
-        %end
-        %delta_ode = FD(:,1:end-1)-rhs_model(:,2:end);
-        %assert(max(max(abs(delta_ode)))<1e-10)
+        if ~isempty(delta_dae)
+          assert(max(max(abs(delta_dae)))<1e-10)
+        end
+        delta_ode = FD(:,1:end-1)-rhs_model(:,2:end);
+        assert(max(max(abs(delta_ode)))<1e-10)
 
         if ~isempty(delta_daer)
           assert(max(max(abs(delta_daer)))<1e-10)
@@ -248,7 +249,7 @@ for model_file_c=models
         delta_oder = FD(xr,1:end-1)-rhsr_model(:,2:end);
         assert(max(max(abs(delta_oder)))<1e-10)
         assert(max(max(abs(Y(:,1:end-1)-y_model)))<1e-8)
-
+        assert(max(max(abs(Y(:,1:end-1)-yr_model)))<1e-8)
 
         if check_ode
             model.ode_expl;
