@@ -70,7 +70,7 @@ matrices = defaultdict(Sparsity)
 codes = {}
 codes_nodes = {}
 
-code_names = ["m","a","b","y","dxy","f","tduf","tdxf","r","mode","dp_r","del_v","del_v0","del_tmax","del_t"]
+code_names = ["m","a","b","y","dxy","f","tduf","tdxf","r","mode","dp_r","del_v","del_v0","del_tmax","del_t","obs_all"]
 
 
 
@@ -394,7 +394,7 @@ def rvalue_to_c(node):
   return generator.visit(node)
 
 
-metadata = {"variable_names": [],"input_names":[],"output_names":[],"parameter_names":[],"mmode_names":[],"n_modes":0,"s_constant_table":{},"mTable":{},"nw":0}
+metadata = {"variable_names": [],"input_names":[],"output_names":[],"parameter_names":[],"mmode_names":[],"n_modes":0,"s_constant_table":{},"mTable":{},"nw":0,"observable_names":[]}
 class MetaDataVisitor(c_ast.NodeVisitor):
 
   def visit_Decl(self, n, no_type=False):
@@ -405,6 +405,13 @@ class MetaDataVisitor(c_ast.NodeVisitor):
               name_split = name_split[1:] 
             #print("var", name_split, e.exprs[2].value)
             metadata["variable_names"].append(".".join(name_split))
+       if n.name=="s_observable_data":
+          for e in n.init.exprs:
+            name_split = e.exprs[0].value[1:-1].split(".")
+            if name_split[0] == model_file_name:
+              name_split = name_split[1:] 
+            #print("var", name_split, e.exprs[2].value)
+            metadata["observable_names"].append(".".join(name_split))
        if n.name=="s_real_parameter_data":
           if isinstance(n.init,c_ast.ID): # Skip when NULL
             return
@@ -552,7 +559,7 @@ for k in matrices:
 
 standard = ["arg_x","arg_u","args_p","args_t"]
 
-map_args = {"mode":standard+["args_q","args_w","args_s"],"f":standard+["args_q","args_w","args_s"],"update_i":["args_x","args_q","args_i"],"del_v":standard, "y": standard}
+map_args = {"mode":standard+["args_q","args_w","args_s"],"f":standard+["args_q","args_w","args_s"],"update_i":["args_x","args_q","args_i"],"del_v":standard, "y": standard, "obs_all": standard+["args_q","args_w","args_s"]}
 map_args_default = ["args_p"]
 map_label_sys = {"arg_x": "mX","arg_u": "mU","args_p":"mP_R","args_t":"mT","args_q":"mQ","args_w":"mW","args_s":"mS"}
 
@@ -564,6 +571,13 @@ constructor.append("self.mmode_names = {" + str(metadata["mmode_names"])[1:-1] +
 constructor.append("self.variable_names = {" + str(metadata["variable_names"])[1:-1] + "};")
 constructor.append("self.input_names = {" + str(metadata["input_names"])[1:-1] + "};")
 constructor.append("self.output_names = {" + str(metadata["output_names"])[1:-1] + "};")
+
+variable_observable_index = []
+for k in metadata["variable_names"]:
+  variable_observable_index.append(metadata["observable_names"].index(k)+1)
+constructor.append("self.variable_observable_index = [" + str(variable_observable_index)[1:-1] + "];")
+
+constructor.append("self.observable_names = {" + str(metadata["observable_names"])[1:-1] + "};")
 constructor.append("self.ndp = " + str(metadata["ndp"]) + ";")
 constructor.append("self.nw = " + str(metadata["nw"]) + ";")
 constructor.append("self.ns = 1;")
@@ -587,6 +601,8 @@ for k in codes:
   methods.append("function ret = {name}({args})\n".format(name=k,args=",".join(["self"]+args)))
   for a in args:
     methods.append(get_system_input_var_name(node)+".%s.mX = casadi.SX(" % map_label_sys[a]+ a +");\n")
+  if k in ["obs_all"]:
+    methods.append("  out.mX = casadi.SX.zeros(self.no,1);")
   if k in ["f"]:
     methods.append("  out.mX = casadi.SX.zeros(size(self.sp_a,1));")
   if k in ["y"]:
@@ -595,7 +611,7 @@ for k in codes:
     methods.append("  out.mU = casadi.SX.zeros(size(self.sp_b,2));")
   if k in ["mode"]:
     methods.append("  out.mX = casadi.SX.zeros(self.nm,1);")
-  if k in ["f"]:
+  if k in ["f","obs_all"]:
     methods.append("  " + get_system_input_var_name(node)+".mM.mX = self.mode("+ ",".join(map_args["mode"])+");\n")
   if k=="del_v":
     methods.append("  out.mX = casadi.SX.zeros(self.nw,1);")
@@ -624,6 +640,8 @@ with open(model_name+".m","w") as f:
       output_names
       parameter_names
       mmode_names
+      observable_names
+      variable_observable_index
       nm
       ndp
       extra

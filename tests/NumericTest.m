@@ -40,6 +40,7 @@ models = {...
           '../models/R2016b/fail_driveline_mass',...
           '../models/R2016b/driveline_spring2',...
           '../models/R2016b/driveline_ICE',...
+          '../models/R2016b/driveline_ICE_fail1',... % scaling tests
           '../models/R2016b/driveline_ICE_fail2',...
           '../models/R2016b/fail_driveline_springdamper_flex',...
           '../models/R2016b/driveline_springdamper_LUT',...
@@ -177,6 +178,8 @@ for model_file_c=models
     disp('Reduced DAE')
     fprintf('#diff states %d\n', nxr);
     fprintf('#algebraic states %d\n', nzr);
+    
+    [A,b] = model.unit_scaling;
     %
     X = zeros(nx,numel(ts));
     for i=1:nx
@@ -184,12 +187,15 @@ for model_file_c=models
        values = data.series.values;
        X(i,:) = values;
     end
+    X = A(1:nx,1:nx)\X;
     Z = zeros(nz,numel(ts));
     for i=1:nz
        data = eval(['simlog.' model.variable_names{nx+i}]);
        values = data.series.values;
        Z(i,:) = values;
     end
+    Z = A(nx+1:end,nx+1:end)\Z;
+
     % Control vector
     U = zeros(model.nu,numel(ts));
     for i=1:model.nu

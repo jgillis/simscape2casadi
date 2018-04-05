@@ -66,6 +66,9 @@ classdef DAEModel
         function out = np(self)
           out = numel(self.parameter_names);
         end
+        function out = no(self)
+          out = numel(self.observable_names);
+        end
         function out = nq(self)
           out = numel(self.mmode_names);
         end
@@ -77,6 +80,22 @@ classdef DAEModel
         end
         function out = nu(self)
           out = size(self.sp_b,2);
+        end
+        function [A,b] = unit_scaling(self)
+          import casadi.*
+          x = SX.sym('x',self.nx);
+          z = SX.sym('z',self.nz);
+          u = SX.sym('u',self.nu);
+          p = SX.sym('p',self.np);
+          t = SX.sym('t');
+          q = SX.sym('q',self.nq);
+          w = SX.sym('w',self.nw);
+          s = SX.sym('s',self.ns);
+          y = self.obs_all([x;z],u,p,t,q,w,s);
+          y = y(self.variable_observable_index);
+          [A,b] = linear_coeff(y,[x;z]);
+          A = sparse(evalf(A));
+          b = full(evalf(b));
         end
         function out = dae_expl(self)
           import casadi.*
