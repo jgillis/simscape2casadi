@@ -70,7 +70,7 @@ matrices = defaultdict(Sparsity)
 codes = {}
 codes_nodes = {}
 
-code_names = ["m","a","b","y","dxy","f","tduf","tdxf","r","mode","dp_r","del_v","del_v0","del_tmax","del_t","obs_all"]
+code_names = ["m","a","b","y","dxy","f","tduf","tdxf","r","mode","dp_r","del_v","del_v0","del_tmax","del_t","obs_act"]
 
 
 
@@ -559,7 +559,7 @@ for k in matrices:
 
 standard = ["arg_x","arg_u","args_p","args_t"]
 
-map_args = {"mode":standard+["args_q","args_w","args_s"],"f":standard+["args_q","args_w","args_s"],"update_i":["args_x","args_q","args_i"],"del_v":standard, "y": standard, "obs_all": standard+["args_q","args_w","args_s"]}
+map_args = {"mode":standard+["args_q","args_w","args_s"],"f":standard+["args_q","args_w","args_s"],"update_i":["args_x","args_q","args_i"],"del_v":standard, "y": standard, "obs_act": standard+["args_q","args_w","args_s"]}
 map_args_default = ["args_p"]
 map_label_sys = {"arg_x": "mX","arg_u": "mU","args_p":"mP_R","args_t":"mT","args_q":"mQ","args_w":"mW","args_s":"mS"}
 
@@ -601,7 +601,7 @@ for k in codes:
   methods.append("function ret = {name}({args})\n".format(name=k,args=",".join(["self"]+args)))
   for a in args:
     methods.append(get_system_input_var_name(node)+".%s.mX = casadi.SX(" % map_label_sys[a]+ a +");\n")
-  if k in ["obs_all"]:
+  if k in ["obs_act"]:
     methods.append("  out.mX = casadi.SX.zeros(self.no,1);")
   if k in ["f"]:
     methods.append("  out.mX = casadi.SX.zeros(size(self.sp_a,1));")
@@ -611,7 +611,7 @@ for k in codes:
     methods.append("  out.mU = casadi.SX.zeros(size(self.sp_b,2));")
   if k in ["mode"]:
     methods.append("  out.mX = casadi.SX.zeros(self.nm,1);")
-  if k in ["f","obs_all"]:
+  if k in ["f","obs_act"]:
     methods.append("  " + get_system_input_var_name(node)+".mM.mX = self.mode("+ ",".join(map_args["mode"])+");\n")
   if k=="del_v":
     methods.append("  out.mX = casadi.SX.zeros(self.nw,1);")

@@ -91,7 +91,7 @@ classdef DAEModel
           q = SX.sym('q',self.nq);
           w = SX.sym('w',self.nw);
           s = SX.sym('s',self.ns);
-          y = self.obs_all([x;z],u,p,t,q,w,s);
+          y = self.obs_act([x;z],u,p,t,q,w,s);
           y = y(self.variable_observable_index);
           [A,b] = linear_coeff(y,[x;z]);
           A = sparse(evalf(A));
