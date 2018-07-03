@@ -29,6 +29,13 @@ classdef SimscapeCasadi
     end
     
     methods(Static)
+      function r = numeric(a)
+         if isnumeric(a)
+             r = a;
+         else
+             r = full(evalf(a));
+         end
+      end
       function r = if_else(cond,iftrue,iffalse)
         if islogical(cond)
           cond = double(cond);  
@@ -36,37 +43,21 @@ classdef SimscapeCasadi
         r = if_else(casadi.SX(cond),iftrue,iffalse);
       end
       function r = tlu2_1d_linear_linear_value(in)
-        r=SimscapeCasadi.pw_lin(in{3},in{1},in{2});
+        tval = SimscapeCasadi.numeric(in{1});
+        val = SimscapeCasadi.numeric(in{2});
+        t = in{3};
+        interp = casadi.interpolant('interp','linear',{tval},val);
+        r = t.call_fun(interp);
       end
       function r = tlu2_2d_linear_linear_value(in)
-        % The SX implementation
-        M = reshape(in{3},numel(in{1}),numel(in{2}));
-        res = cell(1,numel(in{2}));
-        for i=1:numel(in{2})
-            res{i} = SimscapeCasadi.pw_lin(in{4},in{1},M(:,i));
-        end
-        res = [res{:}];
-        r = SimscapeCasadi.pw_lin(in{5},in{2},res);
-      end
-    
-      function y=pw_lin(t, tval, val)
-        import casadi.*
-        N = numel(tval);
-        assert(N>=2);
-        assert(numel(val)==N);
-        tval = SX(tval);
-
-        % Gradient for each line segment
-        g = SX(1, N-1);
-        for i=1:N-1
-          g(i) = (val(i+1)- val(i))/(tval(i+1)-tval(i));
-        end
-  
-        lseg = SX(1, N-1);
-        for i=1:N-1
-          lseg(i) = val(i) + g(i)*(t-tval(i));
-        end
-        y = pw_const(t, vec(tval(2:N-1))', vec(lseg)');
+        tvalx = SimscapeCasadi.numeric(in{1});
+        tvaly = SimscapeCasadi.numeric(in{2});
+        val = SimscapeCasadi.numeric(in{3});
+        tx = in{4};
+        ty = in{5};
+        t = [tx;ty];
+        interp = casadi.interpolant('interp','linear',{tvalx, tvaly}, val);
+        r = t.call_fun(interp);
       end
   end
     
