@@ -32,10 +32,11 @@ import os
 
 basepath = os.path.dirname(os.path.realpath(__file__))
 
-model_file_name = "Drivetrain_Rigid_Model"
+unittests = True
 
 if len(sys.argv)>1:
   model_file_name = sys.argv[1]
+  unittests = False
 
 class Sparsity:
   def __init__(self):
@@ -151,9 +152,9 @@ def pre_transform(a):
   v.visit(a)
   return a
 
-generator = c_generator.CGenerator()
+generatorc = c_generator.CGenerator()
 def to_c(node):
-  return generator.visit(node)
+  return generatorc.visit(node)
 
 def from_constant(n):
      if n.value.endswith("UL"):
@@ -167,6 +168,9 @@ def from_constant(n):
 class CommonExpressionGenerator(c_generator.CGenerator):
    def visit_Constant(self, n):
      return from_constant(n)
+
+
+abbreviated_names = {}
     
 class MatlabExpressionGenerator(CommonExpressionGenerator):
   def visit_ArrayRef(self, n):
@@ -211,18 +215,30 @@ class MatlabExpressionGenerator(CommonExpressionGenerator):
       
   def to_matlab_name(self, name):
       if name.startswith('_'):
-        return "d" + name
+        name =  "d" + name
+
+      # Clip name if it exceeds Matlab's limit 
+      if len(name)>63:
+        if name in abbreviated_names:
+          return abbreviated_names[name]
+        else:
+          postfix = "_abbr%d" % len(abbreviated_names)
+          abbreviated_name = name[:63-len(postfix)] + postfix
+          abbreviated_names[name] = abbreviated_name
+
+        return abbreviated_name
       else:
         return name
 
-  def visit_Assignment(self, node):
+  def visit_Assignment(self, node, prefix=""):
       rval_str = self._parenthesize_if(
                           node.rvalue,
                           lambda n: isinstance(n, c_ast.Assignment))
+
+      lval_str = self.to_matlab_name(prefix+self.visit(node.lvalue))
       if len(node.op)==2 and node.op.endswith("="):
-        return '%s = %s %s (%s)' % (self.visit(node.lvalue), self.visit(node.lvalue), node.op[0], rval_str)
+        return '%s = %s %s (%s)' % (lval_str, self.visit(node.lvalue), node.op[0], rval_str)
       else:
-        lval_str = self.visit(node.lvalue)
         if "(void *)" in to_c(node.rvalue):
           lval_str = lval_str.replace("(","{")
           lval_str = lval_str.replace(")","}")
@@ -264,7 +280,7 @@ class SimScapeExporter(MatlabExpressionGenerator):
   def visit_Assignment(self, node):
     if node.lvalue.name=="out": return "% " + MatlabExpressionGenerator.visit_Assignment(self, node)
     self.lvalues.append(self.visit(node.lvalue))
-    return self.prefix + MatlabExpressionGenerator.visit_Assignment(self, node)
+    return MatlabExpressionGenerator.visit_Assignment(self, node,prefix=self.prefix)
 
   def visit_For(self, node):
   
@@ -291,6 +307,8 @@ class SimScapeExporter(MatlabExpressionGenerator):
   def visit_If(self, node):
        #node.show()
        #ipdb.set_trace()
+
+       print "Visiting :",self.prefix, "\n", to_c(node)
        
        
        #print(self.cond_count, type(self.cond_count))
@@ -303,11 +321,13 @@ class SimScapeExporter(MatlabExpressionGenerator):
        else:
           s = cond + " = " + self.visit(node.cond) + ";\n"
        
+       # Recurse into true branch, but store result instead of dumping to output
        sp_true = SimScapeExporter(prefix=cond+"_true_" + self.prefix,cond_count=self.cond_count)
        sp_true.indent_level=self.indent_level
        st_true= sp_true.visit(node.iftrue)
        self.cond_count = sp_true.cond_count
 
+       # Recurse into false branch, but store result instead of dumping to output
        if node.iffalse:
          sp_false = SimScapeExporter(prefix=cond+"_false_" + self.prefix,cond_count=self.cond_count)
          sp_false.indent_level=self.indent_level
@@ -316,14 +336,13 @@ class SimScapeExporter(MatlabExpressionGenerator):
 
        self.indent_level+=2
        if node.iffalse:
+         print self.prefix, sp_true.lvalues, sp_false.lvalues
          for e in sorted(set(sp_true.lvalues) | set(sp_false.lvalues)):
 
-           s_true = cond+"_true_"+self.prefix+e
-           s_false = cond+"_false_"+self.prefix+e         
-           if e not in sp_true.lvalues:
-              st_true = self._make_indent() + s_true + " = " + self.prefix + e + "; % missing\n" + st_true
-           if e not in sp_false.lvalues:
-              st_false = self._make_indent() + s_false + " = " + self.prefix + e + "; % missing\n" + st_false
+           s_true = self.to_matlab_name(cond+"_true_"+self.prefix+e)
+           s_false = self.to_matlab_name(cond+"_false_"+self.prefix+e)
+           st_true = self._make_indent() + s_true + " = " + self.to_matlab_name(self.prefix + e) + "; % init \n" + st_true
+           st_false = self._make_indent() + s_false + " = " + self.to_matlab_name(self.prefix + e) + "; % init \n" + st_false
        self.indent_level-=2
        
        s+= self._make_indent() + "%"+" start block true: %s\n" % cond
@@ -335,16 +354,16 @@ class SimScapeExporter(MatlabExpressionGenerator):
          s+= self._make_indent() + "%"+" end block false: %s\n" % cond
          for e in sorted(set(sp_true.lvalues) | set(sp_false.lvalues)):
 
-           s_true = cond+"_true_"+self.prefix+e
-           s_false = cond+"_false_"+self.prefix+e         
+           s_true = self.to_matlab_name(cond+"_true_"+self.prefix+e)
+           s_false = self.to_matlab_name(cond+"_false_"+self.prefix+e)     
 
-           s += self._make_indent() + self.prefix+e + " = self.if_else(%s,%s,%s);\n" % (cond, s_true, s_false)
+           s += self._make_indent() + self.to_matlab_name(self.prefix+e) + " = self.if_else(%s,%s,%s);\n" % (cond, s_true, s_false)
            
            self.lvalues.append(e)
        else:
          for e in sorted(set(sp_true.lvalues)):
-           s_true = cond+"_true_"+ self.prefix+e
-           s += self._make_indent() + self.prefix+e + " = self.if_else(%s,%s,%s);\n" % (cond, s_true, self.prefix+e)
+           s_true = self.to_matlab_name(cond+"_true_"+ self.prefix+e)
+           s += self._make_indent() + self.to_matlab_name(self.prefix+e) + " = self.if_else(%s,%s,%s);\n" % (cond, s_true, self.to_matlab_name(self.prefix+e))
 
 
        return s
@@ -371,7 +390,8 @@ class SimScapeExporter(MatlabExpressionGenerator):
          except:
            pass
 
-       return "%" + MatlabExpressionGenerator.visit_Decl(self,n,no_type=no_type)
+       return self.to_matlab_name(n.name) + " = nan"
+       #return "%" + MatlabExpressionGenerator.visit_Decl(self,n,no_type=no_type)
        
   def visit_Cast(self, n):
       if self.parent_compound is not None and n in self.parent_compound.block_items:
@@ -497,154 +517,276 @@ class FuncDefVisitor(c_ast.NodeVisitor):
         #print('%s at %s' % (name, node.decl.coord))
 
 
-code_dir = model_file_name + "_grt_rtw"
-
-import glob
-
-ds_file = glob.glob(os.path.join(code_dir,model_file_name+"_*_ds.c"))[0].split(os.path.sep)[1]
-sim_file_name = ds_file[:-5]
-
-ds_file_pre = os.path.join(code_dir,ds_file[:-2]+"_preprocessed.c")
-
-with open(ds_file_pre,"w") as f_out:
-  with open(os.path.join(code_dir, ds_file),"r") as f_in:
-    for l in f_in.readlines():
-      if l.startswith("#include") and sim_file_name+"_" in l and "ds.h" not in l:
-        mod_l = l.replace(".h",".c")
-        if os.path.exists(os.path.join(code_dir,mod_l.split('"')[1])):
-          l = mod_l
-      f_out.write(l)
-
-cpp_path="cpp"
-if os.name=='nt':
-   cpp_args=["/E","/I" + basepath + "/include"]
-   cpp_path=r"C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\amd64\cl.exe"
-   if not os.path.exists(cpp_path):
-      cpp_path=r"C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\bin\amd64\cl.exe"
-else:
-   cpp_args=["-I" + basepath + "/include"]
-
-ast = parse_file(ds_file_pre, use_cpp=True, cpp_path=cpp_path,cpp_args=cpp_args)
-
-ast = pre_transform(ast)
-v = FuncDefVisitor()
-v.visit(ast)
-
-
-md = MetaDataVisitor()
-md.visit(ast)
-
-model_name = "Model"
-
-constructor = []
-for k in matrices:
-  sp = matrices[k]
-
-  colind = sp.colind()
-  row = sp.row()
-  if colind is None:
-    constructor.append("self.sp_" + k + " = casadi.Sparsity({nrow},{ncol});".format(
-      nrow=sp.rows,ncol=sp.cols))
-  else:
-    constructor.append("self.sp_" + k + " = casadi.Sparsity({nrow},{ncol},{colind},{row});".format(
-      nrow=sp.rows,ncol=sp.cols,colind=colind,row=row))
-
-
-standard = ["arg_x","arg_u","args_p","args_t"]
-
-map_args = {"mode":standard+["args_q","args_w","args_s"],"f":standard+["args_q","args_w","args_s"],"update_i":["args_x","args_q","args_i"],"del_v":standard, "y": standard}
-map_args_default = ["args_p"]
-map_label_sys = {"arg_x": "mX","arg_u": "mU","args_p":"mP_R","args_t":"mT","args_q":"mQ","args_w":"mW","args_s":"mS"}
-
-map_extra_body = {}
-
-constructor.append("self.nm = "+str(metadata["n_modes"])+";")
-constructor.append("self.parameter_names = {" + str(metadata["parameter_names"])[1:-1] + "};")
-constructor.append("self.mmode_names = {" + str(metadata["mmode_names"])[1:-1] + "};")
-constructor.append("self.variable_names = {" + str(metadata["variable_names"])[1:-1] + "};")
-constructor.append("self.input_names = {" + str(metadata["input_names"])[1:-1] + "};")
-constructor.append("self.output_names = {" + str(metadata["output_names"])[1:-1] + "};")
-constructor.append("self.ndp = " + str(metadata["ndp"]) + ";")
-constructor.append("self.nw = " + str(metadata["nw"]) + ";")
-constructor.append("self.ns = 1;")
-
-constructor.append("self.extra = struct(" + ",".join(["'"+ k+"'"+","+str(v) for k,v in metadata["mTable"].items()]) + ");")
-def get_system_input_var_name(node):
-  for e in node.decl.type.args.params:
-    if "NeDynamicSystemInput" in e.type.type.type.names:
-      return e.name
-
-  raise Exception()
-
-methods = []
-for k in codes:
-  c = codes[k]
-  node = codes_nodes[k]
+if unittests:
+  cp = CParser()
+  ast = cp.parse("""
   
-  args = map_args.get(k,map_args_default)
-  extra_body = map_extra_body.get(k,[])
-    
-  methods.append("function ret = {name}({args})\n".format(name=k,args=",".join(["self"]+args)))
-  for a in args:
-    methods.append(get_system_input_var_name(node)+".%s.mX = casadi.SX(" % map_label_sys[a]+ a +");\n")
-  if k in ["f"]:
-    methods.append("  out.mX = casadi.SX.zeros(size(self.sp_a,1));")
-  if k in ["y"]:
-    methods.append("  out.mX = casadi.SX.zeros(self.ny,1);")
-  if k in ["mode","f"]:
-    methods.append("  out.mU = casadi.SX.zeros(size(self.sp_b,2));")
-  if k in ["mode"]:
-    methods.append("  out.mX = casadi.SX.zeros(self.nm,1);")
-  if k in ["f"]:
-    methods.append("  " + get_system_input_var_name(node)+".mM.mX = self.mode("+ ",".join(map_args["mode"])+");\n")
-  if k=="del_v":
-    methods.append("  out.mX = casadi.SX.zeros(self.nw,1);")
-  if k=="dp_r":
-    methods.append("  out.mX = casadi.SX.zeros(self.ndp,1);")
-  if k!="dp_r":
-    methods.append("  " + get_system_input_var_name(node) + ".mDP_R.mX = self.dp_r(args_p);")
-  if k in matrices:
-    methods.append("  out.mX = casadi.SX.zeros(nnz(self.sp_"+ k+ "),1);")
- 
-  methods+= extra_body
-  methods+=c.split("\n")
-  if k in matrices:
-    methods.append("  ret = casadi.SX(self.sp_{name},out.mX);".format(name=k))
+  void foo() {
+    double x;
+    double y;
+    double z;
+  
+    if (cond0) {
+      x = 1;
+      y = 2;
+    } else {
+      x = 3;
+      z = 4;
+    }
+  }
+  ""","foo.c")
+  
+  generator = SimScapeExporter()
+  #print(generator.visit(ast))
+  
+  ast = cp.parse("""
+  
+  void foo() {
+    double x;
+    double y;
+    double z;
+  
+    if (cond0) {
+      x = 1;
+      y = 2;
+    }
+  }
+  ""","foo.c")
+  
+  generator = SimScapeExporter()
+  
+  #print(generator.visit(ast))
+
+  ast = cp.parse("""
+  
+  void foo() {
+    double x;
+    double y;
+    double z;
+  
+    if (cond0) {
+    }
+  }
+  ""","foo.c")
+  
+  generator = SimScapeExporter()
+  
+  #print(generator.visit(ast))
+  
+  
+  ast = cp.parse("""
+  
+  void foo() {
+    double x;
+    double y;
+    double z;
+  
+    if (cond0) {
+      x = 1;
+      y = 2;
+    } else {
+      if (cond1) {
+        x = 7;
+      }
+      z = 4;
+    }
+  }
+  ""","foo.c")
+  
+  generator = SimScapeExporter()
+  
+  #print(generator.visit(ast))
+
+
+  ast = cp.parse("""
+  
+  void foo() {
+    double x;
+    double y;
+    double z;
+  
+    if (cond0) {
+    } else if (cond1) {
+      y-= 3;
+    }
+  }
+  ""","foo.c")
+  
+  generator = SimScapeExporter()
+  
+  #print(generator.visit(ast))
+
+
+  ast = cp.parse("""
+  
+  void foo() {
+    double x;
+    double y;
+    double z;
+  
+    if (cond0) {
+      y+=5;
+    } else if (cond1) {
+      y-= 3;
+    } else if (cond2) {
+      y-= 6;
+    }
+  }
+  ""","foo.c")
+  
+  generator = SimScapeExporter()
+  
+  print(generator.visit(ast))
+else:
+  code_dir = model_file_name + "_grt_rtw"
+
+  import glob
+
+  ds_file = glob.glob(os.path.join(code_dir,model_file_name+"_*_ds.c"))[0].split(os.path.sep)[1]
+  sim_file_name = ds_file[:-5]
+
+  ds_file_pre = os.path.join(code_dir,ds_file[:-2]+"_preprocessed.c")
+
+  with open(ds_file_pre,"w") as f_out:
+    with open(os.path.join(code_dir, ds_file),"r") as f_in:
+      for l in f_in.readlines():
+        if l.startswith("#include") and sim_file_name+"_" in l and "ds.h" not in l:
+          mod_l = l.replace(".h",".c")
+          if os.path.exists(os.path.join(code_dir,mod_l.split('"')[1])):
+            l = mod_l
+        f_out.write(l)
+
+  cpp_path="cpp"
+  if os.name=='nt':
+     cpp_args=["/E","/I" + basepath + "/include"]
+     cpp_path=r"C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\amd64\cl.exe"
+     if not os.path.exists(cpp_path):
+        cpp_path=r"C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\bin\amd64\cl.exe"
   else:
-    methods.append("  ret = out.mX;".format(name=k))
-  methods.append("end\n")
+     cpp_args=["-I" + basepath + "/include"]
 
-with open(model_name+".m","w") as f:
-  f.write("""classdef {model_name} < DAEModel & SimscapeCasadi
+  ast = parse_file(ds_file_pre, use_cpp=True, cpp_path=cpp_path,cpp_args=cpp_args)
+
+  ast = pre_transform(ast)
+  v = FuncDefVisitor()
+  v.visit(ast)
+
+
+  md = MetaDataVisitor()
+  md.visit(ast)
+
+  model_name = "Model"
+
+  constructor = []
+  for k in matrices:
+    sp = matrices[k]
+
+    colind = sp.colind()
+    row = sp.row()
+    if colind is None:
+      constructor.append("self.sp_" + k + " = casadi.Sparsity({nrow},{ncol});".format(
+        nrow=sp.rows,ncol=sp.cols))
+    else:
+      constructor.append("self.sp_" + k + " = casadi.Sparsity({nrow},{ncol},{colind},{row});".format(
+        nrow=sp.rows,ncol=sp.cols,colind=colind,row=row))
+
+
+  standard = ["arg_x","arg_u","args_p","args_t"]
+
+  map_args = {"mode":standard+["args_q","args_w","args_s"],"f":standard+["args_q","args_w","args_s"],"update_i":["args_x","args_q","args_i"],"del_v":standard, "y": standard}
+  map_args_default = ["args_p"]
+  map_label_sys = {"arg_x": "mX","arg_u": "mU","args_p":"mP_R","args_t":"mT","args_q":"mQ","args_w":"mW","args_s":"mS"}
+
+  map_extra_body = {}
+
+  constructor.append("self.nm = "+str(metadata["n_modes"])+";")
+  constructor.append("self.parameter_names = {" + str(metadata["parameter_names"])[1:-1] + "};")
+  constructor.append("self.mmode_names = {" + str(metadata["mmode_names"])[1:-1] + "};")
+  constructor.append("self.variable_names = {" + str(metadata["variable_names"])[1:-1] + "};")
+  constructor.append("self.input_names = {" + str(metadata["input_names"])[1:-1] + "};")
+  constructor.append("self.output_names = {" + str(metadata["output_names"])[1:-1] + "};")
+  constructor.append("self.ndp = " + str(metadata["ndp"]) + ";")
+  constructor.append("self.nw = " + str(metadata["nw"]) + ";")
+  constructor.append("self.ns = 1;")
+
+  constructor.append("self.extra = struct(" + ",".join(["'"+ k+"'"+","+str(v) for k,v in metadata["mTable"].items()]) + ");")
+  def get_system_input_var_name(node):
+    for e in node.decl.type.args.params:
+      if "NeDynamicSystemInput" in e.type.type.type.names:
+        return e.name
+
+    raise Exception()
+
+  methods = []
+  for k in codes:
+    c = codes[k]
+    node = codes_nodes[k]
     
-    properties
-      {properties}
-      variable_names
-      input_names
-      output_names
-      parameter_names
-      mmode_names
-      nm
-      ndp
-      extra
-      nw
-      ns
-    end
-    
-    methods
-      function self = {model_name}()
-        self = self@DAEModel();
-        {constructor}
+    args = map_args.get(k,map_args_default)
+    extra_body = map_extra_body.get(k,[])
+      
+    methods.append("function ret = {name}({args})\n".format(name=k,args=",".join(["self"]+args)))
+    for a in args:
+      methods.append(get_system_input_var_name(node)+".%s.mX = casadi.SX(" % map_label_sys[a]+ a +");\n")
+    if k in ["f"]:
+      methods.append("  out.mX = casadi.SX.zeros(size(self.sp_a,1));")
+    if k in ["y"]:
+      methods.append("  out.mX = casadi.SX.zeros(self.ny,1);")
+    if k in ["mode","f"]:
+      methods.append("  out.mU = casadi.SX.zeros(size(self.sp_b,2));")
+    if k in ["mode"]:
+      methods.append("  out.mX = casadi.SX.zeros(self.nm,1);")
+    if k in ["f"]:
+      methods.append("  " + get_system_input_var_name(node)+".mM.mX = self.mode("+ ",".join(map_args["mode"])+");\n")
+    if k=="del_v":
+      methods.append("  out.mX = casadi.SX.zeros(self.nw,1);")
+    if k=="dp_r":
+      methods.append("  out.mX = casadi.SX.zeros(self.ndp,1);")
+    if k!="dp_r":
+      methods.append("  " + get_system_input_var_name(node) + ".mDP_R.mX = self.dp_r(args_p);")
+    if k in matrices:
+      methods.append("  out.mX = casadi.SX.zeros(nnz(self.sp_"+ k+ "),1);")
+   
+    methods+= extra_body
+    methods+=c.split("\n")
+    if k in matrices:
+      methods.append("  ret = casadi.SX(self.sp_{name},out.mX);".format(name=k))
+    else:
+      methods.append("  ret = out.mX;".format(name=k))
+    methods.append("end\n")
+
+  with open(model_name+".m","w") as f:
+    f.write("""classdef {model_name} < DAEModel & SimscapeCasadi
+      
+      properties
+        {properties}
+        variable_names
+        input_names
+        output_names
+        parameter_names
+        mmode_names
+        nm
+        ndp
+        extra
+        nw
+        ns
       end
-      {methods}
-    end
-    
-end""".format(model_name=model_name,
-              properties="\n      ".join("sp_" + k for k in matrices.keys()),
-              constructor="\n        ".join(constructor),
-              methods="\n      ".join(methods)))
+      
+      methods
+        function self = {model_name}()
+          self = self@DAEModel();
+          {constructor}
+        end
+        {methods}
+      end
+      
+  end""".format(model_name=model_name,
+                properties="\n      ".join("sp_" + k for k in matrices.keys()),
+                constructor="\n        ".join(constructor),
+                methods="\n      ".join(methods)))
 
-# check if ode model!
+  # check if ode model!
 
-#print(metadata)
+  #print(metadata)
+
 
