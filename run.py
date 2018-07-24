@@ -308,8 +308,6 @@ class SimScapeExporter(MatlabExpressionGenerator):
        #node.show()
        #ipdb.set_trace()
 
-       print "Visiting :",self.prefix, "\n", to_c(node)
-       
        
        #print(self.cond_count, type(self.cond_count))
        cond = "cond%d" % self.cond_count
@@ -336,7 +334,6 @@ class SimScapeExporter(MatlabExpressionGenerator):
 
        self.indent_level+=2
        if node.iffalse:
-         print self.prefix, sp_true.lvalues, sp_false.lvalues
          for e in sorted(set(sp_true.lvalues) | set(sp_false.lvalues)):
 
            s_true = self.to_matlab_name(cond+"_true_"+self.prefix+e)
