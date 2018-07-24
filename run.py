@@ -157,6 +157,8 @@ def to_c(node):
   return generatorc.visit(node)
 
 def from_constant(n):
+     if n.value.endswith("U"):
+       return n.value[:-1]
      if n.value.endswith("UL"):
        return n.value[:-2]
      elif n.value.endswith("ULL"):
@@ -427,6 +429,10 @@ class MetaDataVisitor(c_ast.NodeVisitor):
             return
           for e in n.init.exprs:
             name = e.exprs[0].value[1:-1]
+            index = int(from_constant(e.exprs[3]))
+            size = int(from_constant(e.exprs[5]))
+            if size!=1:
+              name+="(%d)" % (index+1)
             metadata["parameter_names"].append(name)
        if n.name=="s_major_mode_data":
           if isinstance(n.init,c_ast.ID): # Skip when NULL
