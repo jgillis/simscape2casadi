@@ -1,0 +1,30 @@
+component springmod < foundation.mechanical.rotational.branch
+% Rotational Spring
+% The block represents an ideal mechanical rotational linear spring.
+%
+% Connections R and C are mechanical rotational conserving ports. 
+% The block positive direction is from port R to port C. This means 
+% that the torque is positive if it acts in the direction from R to C.
+
+% Copyright 2005-2015 The MathWorks, Inc.
+
+parameters
+    spr_rate  = {[10 5], 'N*m/rad'};  % Spring rate
+    
+    extra  = {[1 0.2 0.4;0.1 0.7 0.9], 'N*m/rad'};  % Spring rate
+end
+
+variables
+    phi = { value = { 0, 'rad'}, priority = priority.high };    % Deformation
+end
+
+function setup %#simple
+
+end
+
+equations
+    w == phi.der;
+    t == (spr_rate(1)+spr_rate(2)+extra(1,2)+extra(2,1)+extra(2,3))*phi;
+end
+
+end

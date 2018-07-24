@@ -31,6 +31,7 @@ models = {...
           '../models/R2014b/driveline_springdamper',...
           '../models/R2016b/driveline_springdamper',...
           '../models/R2016b/driveline_springdamper_param',...
+          '../models/R2016b/driveline_springdamper_params',...
           '../models/R2016b/driveline_springdamper_gearbox',...
           '../models/R2016b/driveline_springdamper_timedep',...
           '../models/R2016b/driveline_springdamper_backlash',...
@@ -248,9 +249,10 @@ for model_file_c=models
 
         delta_oder = FD(xr,1:end-1)-rhsr_model(:,2:end);
         assert(max(max(abs(delta_oder)))<1e-10)
-        assert(max(max(abs(Y(:,1:end-1)-y_model)))<1e-8)
-        assert(max(max(abs(Y(:,1:end-1)-yr_model)))<1e-8)
-
+        if ny>0
+            assert(max(max(abs(Y(:,1:end-1)-y_model)))<1e-8)
+            assert(max(max(abs(Y(:,1:end-1)-yr_model)))<1e-8)
+        end
         if check_ode
             model.ode_expl;
 
@@ -284,7 +286,7 @@ for model_file_c=models
             assert(max(max(abs(delta_oder)))<1e-10)
             DY = Y(:,1:end-1)-yr_model;
             DY(isnan(DY) | isinf(DY)) = 0;
-            if output_check
+            if output_check && ny>0
               assert(max(max(abs(DY)))<1e-8)
             end
         end
