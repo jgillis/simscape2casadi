@@ -503,7 +503,7 @@ class FuncDefVisitor(c_ast.NodeVisitor):
         if len(names)>=2 and names[0]=="ds" and names_remainder in code_names: 
           n = names_remainder
           type = "double"
-          if n in ["mode","f"]:
+          if n in ["mode","f","dp_r"]:
             type = "SX"
           generator = SimScapeExporter(type=type)
           c = codes[n] = generator.visit(node.body)
