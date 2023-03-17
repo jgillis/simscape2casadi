@@ -1,17 +1,22 @@
 % Parametric: open global simscape settings (Home->Preferences),
 %  and tick 'show run-time parameter settings'
 
-clear all
+clear
 close all
 clc
-addpath('/home/jgillis/programs/casadi/matlab_install/casadi')
+% addpath('/home/jgillis/programs/casadi/matlab_install/casadi')
 import casadi.*
 
 
 warning('off','symbolic:sym:sym:DeprecateExpressions')
 warning('off','symbolic:generate:FunctionNotVerifiedToBeValid')
 warning('off','physmod:simscape:compiler:sli:logging:CodeGenNotSupported')
-addpath('..')
+% addpath('..')
+
+% get the current Matlab version number
+p = currentProject;
+% Get the project root folder:
+projectRoot = p.RootFolder;
 
 % Cleanup if test folder is in a dirty state
 if exist('slprj','dir')==1
@@ -20,52 +25,47 @@ end
 d=dir;
 for d={d.name}
    d=d{1};
-   if ~isempty(strfind(d,'grt'))
+   if contains(d,'grt')
        rmdir(d,'s')
    end
 end
 
 has_proprietary = exist('../models/proprietary','dir');
 
-models = {...
-          '../models/R2014b/driveline_springdamper',...
-          '../models/R2016b/driveline_springdamper',...
-          '../models/R2016b/driveline_springdamper_param',...
-          '../models/R2016b/driveline_springdamper_params',...
-          '../models/R2016b/driveline_springdamper_gearbox',...
-          '../models/R2016b/driveline_springdamper_timedep',...
-          '../models/R2016b/driveline_springdamper_backlash',...
-          '../models/R2016b/driveline_springdamper_flex',...
-          '../models/R2016b/driveline_EM',...
-          '../models/R2016b/fail_driveline_mass3',...
-          '../models/R2016b/fail_driveline_mass',...
-          '../models/R2016b/driveline_spring2',...
-          '../models/R2016b/driveline_ICE',...
-          '../models/R2016b/driveline_ICE_fail2',...
-          '../models/R2016b/fail_driveline_springdamper_flex',...
-          '../models/R2016b/driveline_springdamper_LUT',...
-          '../models/R2016b/driveline_springdamper_constant',...
-          '../models/R2016b/driveline_springdamper_torqueconv',...
-           '../models/proprietary/R2016b/PMA/DiskClutch_Inertia_New',...
-           '../models/proprietary/R2016b/FM/smallDrivelineSimScape_oscSpring_flex',...
-           '../models/R2016b/driveline_springdamper_LUT2',...
-           '../models/proprietary/R2016b/PMA/CamFollowerTest_2016b'}; 
-         % %'../models/R2016b/driveline_springdamper_clutch'};%,...
-          %'../models/R2016b/proprietary/FM/DCT_v_0_1'};%,...
+model_folder = '../models/R2022b/';
+
+models = {'driveline_springdamper',...
+          'driveline_springdamper_param',...
+          'driveline_springdamper_params',...
+          'driveline_springdamper_gearbox',...
+          'driveline_springdamper_timedep',...
+          'driveline_springdamper_backlash',...
+          'driveline_springdamper_flex',...
+          'driveline_EM',...
+          'fail_driveline_mass3',...
+          'fail_driveline_mass',...
+          'driveline_spring2',...
+          'driveline_ICE',...
+          'driveline_ICE_fail2',...
+          'fail_driveline_springdamper_flex',...
+          'driveline_springdamper_LUT',...
+          'driveline_springdamper_constant',...
+          'driveline_springdamper_torqueconv',...
+          'driveline_springdamper_LUT2'}; 
 
 
 for model_file_c=models
     
     % Skip priorietary models when not available
-    if ~isempty(strfind(path,'proprietary')) && ~has_proprietary
+    if contains(path,'proprietary') && ~has_proprietary
         warning(['Skipping proprietary model ' model_file])
         continue
     end
     
     model_file = model_file_c{1};
     disp(['model: ' model_file])
-    [path,model_file_name,ext] = fileparts(model_file);
-    addpath(path);
+    [path,model_file_path,ext] = fileparts(model_file);
+%     addpath(path);
     
     eval_check = true;
     integration_check = true;
@@ -73,7 +73,7 @@ for model_file_c=models
     check_ode = true;
     output_check = true;
     Ts = 0.01;    
-    if exist([model_file '_config.m'])
+    if exist([model_file '_config.m'],'file')
         run([model_file '_config.m'])
     end
     assert(integration_check || eval_check);
@@ -106,19 +106,19 @@ for model_file_c=models
     cs.set_param('GenCodeOnly',true);
     cs.set_param('SaveTime',true);
     
-    set_param([model_file_name '/Solver Configuration'],'UseLocalSolver','on');
-    set_param([model_file_name '/Solver Configuration'],'LocalSolverSampleTime',num2str(Ts));
-    set_param([model_file_name '/Solver Configuration'],'DoFixedCost','on');
+    set_param([model_file_path '/Solver Configuration'],'UseLocalSolver','on');
+    set_param([model_file_path '/Solver Configuration'],'LocalSolverSampleTime',num2str(Ts));
+    set_param([model_file_path '/Solver Configuration'],'DoFixedCost','on');
     max_iter = 10;
-    set_param([model_file_name '/Solver Configuration'],'MaxNonlinIter',num2str(max_iter));
+    set_param([model_file_path '/Solver Configuration'],'MaxNonlinIter',num2str(max_iter));
     
     % According to Simscape documentation, backward Euler is activated at
     % the initial time, and at discrete changes
-    %set_param([model_file_name '/Solver Configuration'],'LocalSolverChoice','NE_TRAPEZOIDAL_ADVANCER');
-    set_param([model_file_name '/Solver Configuration'],'LocalSolverChoice','NE_BACKWARD_EULER_ADVANCER');
-    set_param([model_file_name '/Solver Configuration'],'ResidualTolerance','1e-9');
+    %set_param([model_file_path '/Solver Configuration'],'LocalSolverChoice','NE_TRAPEZOIDAL_ADVANCER');
+    set_param([model_file_path '/Solver Configuration'],'LocalSolverChoice','NE_BACKWARD_EULER_ADVANCER');
+    set_param([model_file_path '/Solver Configuration'],'ResidualTolerance','1e-9');
 
-    simOut = sim(model_file_name,cs);
+    simOut = sim(model_file_path,cs);
 
     simlog = simOut.get('simlog');
 
@@ -132,9 +132,14 @@ for model_file_c=models
 
     % Run conversion script
     disp('codegen')
-    rtwbuild(model_file_name)
+    rtwbuild(model_file_path)
     disp('simscape2casadi')
-    out = system(['python ../run.py ' model_file_name]);
+    model_path = get_param(model_file_path, 'FileName');
+    [mdl_folder,mdl_name,~] = fileparts(model_path);
+    syscmd = ['python ',...
+              fullfile(convertStringsToChars(projectRoot),'run.py'),...
+              ' ', fullfile(mdl_folder,mdl_name)];
+    out = system(syscmd);
     assert(out==0);
 
     rehash
@@ -317,7 +322,7 @@ for model_file_c=models
         rf = rootfinder('rf','newton',rf_res,struct('max_iter',max_iter));
         %rf = rootfinder('rf','nlpsol',rf_res,struct('nlpsol','ipopt','nlpsol_options',struct('ipopt',struct('print_level',0),'print_time',false)));
 
-        disp(['integration_check'])
+        disp('integration_check')
         for i=1:numel(ts)-1
           % This is odd: Simscape seems to take U(:,i+1) here instead of U(:,i)
           [sol] = rf([Xtraj(:,i);Ztraj(:,i)],Xtraj(:,i),U(:,i+1),P,ts(i+1),0,0,0);
@@ -335,23 +340,23 @@ for model_file_c=models
         end
 
         assert(max(max(abs(X(xr,1:i)-Xtraj(:,1:i))))<1e-8)
-        if ny>0 & output_check
+        if ny>0 && output_check
           assert(max(max(abs(Y(:,1:i)-Ytraj(:,1:i))))<1e-8)
         end
     end
     
     %
-    close_system(model_file_name, 0);
+    close_system(model_file_path, 0);
 
-    rmdir([model_file_name '_grt_rtw'],'s')
+    rmdir([model_file_path '_grt_rtw'],'s')
 
     delete Model.m
     delete temp.m
-    if exist(model_file_name)
-        delete(model_file_name)
+    if exist(model_file_path,'dir')
+        delete(model_file_path)
     end
-    if exist([model_file_name '.exe'])
-        delete([model_file_name '.exe'])
+    if exist([model_file_path '.exe'],'file')
+        delete([model_file_path '.exe'])
     end
     rmdir('slprj','s')
 

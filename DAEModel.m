@@ -149,7 +149,7 @@ classdef DAEModel
             assert(~any(which_depends(res, z, 2, false)))
               J = jacobian(res,z);
 
-              unsafe = ~isempty(strfind(str(J),'?'));
+              unsafe = contains(str(J),'?');
 
               zsol = -J\substitute(res,z,0);
               rhs = substitute(rhs,z,zsol);
@@ -182,7 +182,7 @@ classdef DAEModel
           else
             assert(~any(which_depends(res, z, 2, false)))
             J = jacobian(res,z);
-            unsafe = ~isempty(strfind(str(J),'?'));
+            unsafe = contains(str(J),'?');
             zsol = -J\substitute(res,z,0);
             rhs = substitute(rhs,z,zsol);
             y = substitute(y,z,zsol);
@@ -268,17 +268,17 @@ classdef DAEModel
             end
           
             t_mupad = sym('t');
-            x_mupad = cellfun(@(e) sym([name(e) '(t)']),vertsplit(x),'uni',false);
+            x_mupad = cellfun(@(e) str2sym([name(e) '(t)']),vertsplit(x),'uni',false);
             dx_mupad = cell(nx,1);
             for i=1:nx
                dx_mupad{i} = diff(x_mupad{i},t_mupad);
             end
-            z_mupad = cellfun(@(e) sym([name(e) '(t)']),vertsplit(z),'uni',false);
-            u_mupad = cellfun(@(e) sym([name(e) '(t)']),vertsplit(u),'uni',false);
-            p_mupad = cellfun(@(e) sym(name(e)),vertsplit(p),'uni',false);
-            q_mupad = cellfun(@(e) sym(name(e)),vertsplit(q),'uni',false);
-            w_mupad = cellfun(@(e) sym(name(e)),vertsplit(w),'uni',false);
-            s_mupad = cellfun(@(e) sym(name(e)),vertsplit(s),'uni',false);
+            z_mupad = cellfun(@(e) str2sym([name(e) '(t)']),vertsplit(z),'uni',false);
+            u_mupad = cellfun(@(e) str2sym([name(e) '(t)']),vertsplit(u),'uni',false);
+            p_mupad = cellfun(@(e) str2sym(name(e)),vertsplit(p),'uni',false);
+            q_mupad = cellfun(@(e) str2sym(name(e)),vertsplit(q),'uni',false);
+            w_mupad = cellfun(@(e) str2sym(name(e)),vertsplit(w),'uni',false);
+            s_mupad = cellfun(@(e) str2sym(name(e)),vertsplit(s),'uni',false);
 
             [A_mupad, fA_mupad, fA_casadi] = DAEModel.to_mupad(A, 'A');
             [B_mupad, fB_mupad, fB_casadi] = DAEModel.to_mupad(B, 'B');
@@ -665,7 +665,7 @@ classdef DAEModel
               if isempty(deps_i)
                 E_mupad(i) = Enum(i);
               else
-                f = sym(['f_' label num2str(fcount) '(' deps(1:end-1) ')']);
+                f = str2sym(['f_' label num2str(fcount) '(' deps(1:end-1) ')']);
                 f_mupad{fcount} = f;
                 E_mupad(i) = f;
                 fcount = fcount+1;

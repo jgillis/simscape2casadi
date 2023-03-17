@@ -7,14 +7,14 @@ addpath('..')
 
 smallDrivelineSimScape_oscSpring_flex_config
 
-model_file_name = 'smallDrivelineSimScape_oscSpring_flex';
-open_system(model_file_name);
+model_file_path = 'smallDrivelineSimScape_oscSpring_flex';
+open_system(model_file_path);
 
 %% Run conversion script
 
-rtwbuild(model_file_name)
+rtwbuild(model_file_path)
 %%
-out = system(['python ../run.py ' model_file_name]);
+out = system(['python ../run.py ' model_file_path]);
 assert(out==0);
 
 rehash

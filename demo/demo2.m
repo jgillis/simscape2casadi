@@ -1,20 +1,23 @@
 clear
 close all
+bdclose all
 clc
 
-addpath('../models/proprietary/R2022b/FM')
-addpath('..')
+% addpath('../models/proprietary/R2022b/FM')
+% addpath('..')
 
-smallDrivelineSimScape_oscSpring_flex_config
+model_file_path = 'driveline_springdamper_flex';
 
-model_file_name = 'smallDrivelineSimScape_oscSpring_flex';
-open_system(model_file_name);
+if ~bdIsLoaded(model_file_path)
+    load_system(model_file_path);
+    open_system(model_file_path);
+end
 
 %% Run conversion script
 
-rtwbuild(model_file_name)
+rtwbuild(model_file_path);
 %%
-out = system(['python ../run.py ' model_file_name]);
+out = system(['python ../run.py ' model_file_path]);
 assert(out==0);
 
 rehash
@@ -22,7 +25,7 @@ rehash
 
 %%
 
-addpath('/home/jgillis/programs/casadi/matlab_install/casadi')
+% addpath('/home/jgillis/programs/casadi/matlab_install/casadi')
 model = Model;
 
 model.input_names
