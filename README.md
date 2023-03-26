@@ -2,11 +2,12 @@
 
 
 Prerequisites:
- - [CasADi 3.3](install33.casadi.org); add it to the Matlab path
+ - [CasADi 3.5.5];
  - Matlab symbolic toolbox
  - Python
- - Python package `pycparser`: `pip install pycparser` 
+ - Python package 'pycparser': 'pip install pycparser'
 
-Run tests:
- - In matlab, navigate to 'tests' folder, and run `NumericTest`
-
+Workflow:
+ - Start Matlab Project: double-click on "Simscape2casadi.prj"
+ - Download Casadi: run script "downloadCasadi.m" (at first start)
+ - Run tests: in matlab, navigate to 'tests' folder, and run `NumericTest`

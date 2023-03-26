@@ -35,6 +35,8 @@ typedef struct Dummy PmSparsityPattern;
 typedef struct Dummy PmIntVector;
 typedef struct Dummy PmBoolVector;
 typedef struct Dummy NeRtlEqInfo;
-
+typedef struct Dummy NeCERData;
+typedef struct Dummy NeICRData;
+typedef struct Dummy SscIoInfo;
 
 void  ne_rtl_call_method(void*, int, int, void*, void*, void*, void*, void*);

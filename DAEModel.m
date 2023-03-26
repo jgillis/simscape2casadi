@@ -51,10 +51,14 @@ classdef DAEModel
     %  del_v0(p)       output of the delay pipeline when the input hasn't
     %                  reached the output yet
     
-    properties
-    end
+%     properties (GetAccess = public , SetAccess = protected)
+%         Model
+%     end
     
     methods
+%         function self = DAEModel(Model)
+%           self.Model = Model;
+%         end
         function self = DAEModel()
         end
         function out = n(self)
@@ -149,7 +153,7 @@ classdef DAEModel
             assert(~any(which_depends(res, z, 2, false)))
               J = jacobian(res,z);
 
-              unsafe = ~isempty(strfind(str(J),'?'));
+              unsafe = contains(str(J),'?');
 
               zsol = -J\substitute(res,z,0);
               rhs = substitute(rhs,z,zsol);
@@ -182,7 +186,7 @@ classdef DAEModel
           else
             assert(~any(which_depends(res, z, 2, false)))
             J = jacobian(res,z);
-            unsafe = ~isempty(strfind(str(J),'?'));
+            unsafe = contains(str(J),'?');
             zsol = -J\substitute(res,z,0);
             rhs = substitute(rhs,z,zsol);
             y = substitute(y,z,zsol);
@@ -191,7 +195,7 @@ classdef DAEModel
           out = Function('E',{x,u,p,t,q,w,s},{rhs,y},{'x','u','p','t','q','w','s'},{'rhs','y'});
         end
         function [Fun, xr, zr] = Fr(self)
-            model = Model;
+%             model = Model;
 
             nx = self.nx;
             nz = self.nz;
@@ -268,17 +272,17 @@ classdef DAEModel
             end
           
             t_mupad = sym('t');
-            x_mupad = cellfun(@(e) sym([name(e) '(t)']),vertsplit(x),'uni',false);
+            x_mupad = cellfun(@(e) str2sym([name(e) '(t)']),vertsplit(x),'uni',false);
             dx_mupad = cell(nx,1);
             for i=1:nx
                dx_mupad{i} = diff(x_mupad{i},t_mupad);
             end
-            z_mupad = cellfun(@(e) sym([name(e) '(t)']),vertsplit(z),'uni',false);
-            u_mupad = cellfun(@(e) sym([name(e) '(t)']),vertsplit(u),'uni',false);
-            p_mupad = cellfun(@(e) sym(name(e)),vertsplit(p),'uni',false);
-            q_mupad = cellfun(@(e) sym(name(e)),vertsplit(q),'uni',false);
-            w_mupad = cellfun(@(e) sym(name(e)),vertsplit(w),'uni',false);
-            s_mupad = cellfun(@(e) sym(name(e)),vertsplit(s),'uni',false);
+            z_mupad = cellfun(@(e) str2sym([name(e) '(t)']),vertsplit(z),'uni',false);
+            u_mupad = cellfun(@(e) str2sym([name(e) '(t)']),vertsplit(u),'uni',false);
+            p_mupad = cellfun(@(e) str2sym(name(e)),vertsplit(p),'uni',false);
+            q_mupad = cellfun(@(e) str2sym(name(e)),vertsplit(q),'uni',false);
+            w_mupad = cellfun(@(e) str2sym(name(e)),vertsplit(w),'uni',false);
+            s_mupad = cellfun(@(e) str2sym(name(e)),vertsplit(s),'uni',false);
 
             [A_mupad, fA_mupad, fA_casadi] = DAEModel.to_mupad(A, 'A');
             [B_mupad, fB_mupad, fB_casadi] = DAEModel.to_mupad(B, 'B');
@@ -367,19 +371,19 @@ classdef DAEModel
             Q = sym('Q',[nq,1]);
             W = sym('W',[nw,1]);
             S = sym('S',[ns,1]);  
-            unsafe = arrayfun(@(x) ~isempty(strfind(char(x),'diff')),F);
+            unsafe = arrayfun(@(x) contains(char(x),'diff'),F);
             if any(unsafe)
                 warning('diff ignored')
             end
             F = subs(F,[newVars;vertcat(u_mupad{:});vertcat(p_mupad{:});vertcat(q_mupad{:});vertcat(w_mupad{:});vertcat(s_mupad{:})],[XZ;U;P;Q;W;S]);
             F(unsafe) = NaN;
-            unsafe = arrayfun(@(x) ~isempty(strfind(char(x),'diff')),M);
+            unsafe = arrayfun(@(x) contains(char(x),'diff'),M);
             if any(unsafe)
                 warning('diff ignored')
             end
             M = subs(M,[newVars;vertcat(u_mupad{:});vertcat(p_mupad{:});vertcat(q_mupad{:});vertcat(w_mupad{:});vertcat(s_mupad{:})],[XZ;U;P;Q;W;S]);
             M(unsafe) = NaN;
-            unsafe = arrayfun(@(x) ~isempty(strfind(char(x),'diff')),replaced_variables);
+            unsafe = arrayfun(@(x) contains(char(x),'diff'),replaced_variables);
             if any(unsafe)
                 warning('diff ignored')
             end
@@ -665,7 +669,7 @@ classdef DAEModel
               if isempty(deps_i)
                 E_mupad(i) = Enum(i);
               else
-                f = sym(['f_' label num2str(fcount) '(' deps(1:end-1) ')']);
+                f = str2sym(['f_' label num2str(fcount) '(' deps(1:end-1) ')']);
                 f_mupad{fcount} = f;
                 E_mupad(i) = f;
                 fcount = fcount+1;
