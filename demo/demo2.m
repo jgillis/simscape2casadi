@@ -6,18 +6,31 @@ clc
 % addpath('../models/proprietary/R2022b/FM')
 % addpath('..')
 
-model_file_path = 'driveline_springdamper_flex';
+mdl_name = 'driveline_springdamper';
 
-if ~bdIsLoaded(model_file_path)
-    load_system(model_file_path);
-    open_system(model_file_path);
+if ~bdIsLoaded(mdl_name)
+    load_system(mdl_name);
+    open_system(mdl_name);
 end
 
 %% Run conversion script
 
-rtwbuild(model_file_path);
+rtwbuild(mdl_name);
 %%
-out = system(['python ../run.py ' model_file_path]);
+
+% get the current Matlab version number
+prj = currentProject;
+% Get the project root folder:
+projectRoot = prj.RootFolder;
+
+model_path = get_param(mdl_name, 'FileName');
+[mdl_folder,mdl_name,~] = fileparts(model_path);
+
+syscmd = ['python ',...
+              fullfile(convertStringsToChars(projectRoot),'run.py'),...
+              ' ', fullfile(mdl_folder,mdl_name)];
+
+out = system(syscmd);
 assert(out==0);
 
 rehash
@@ -26,7 +39,8 @@ rehash
 %%
 
 % addpath('/home/jgillis/programs/casadi/matlab_install/casadi')
-model = Model;
+eval(['model = ',mdl_name,'_DAE;']);
+% model = Model;
 
 model.input_names
 

@@ -45,13 +45,13 @@ models = {'driveline_springdamper',...
           'fail_driveline_mass3',...
           'fail_driveline_mass',...
           'driveline_spring2',...
-          'driveline_ICE',...
-          'driveline_ICE_fail2',...
-          'fail_driveline_springdamper_flex',...
-          'driveline_springdamper_LUT',...
-          'driveline_springdamper_constant',...
-          'driveline_springdamper_torqueconv',...
-          'driveline_springdamper_LUT2'}; 
+          'driveline_springdamper_constant'};
+          ...%'driveline_ICE',...
+          ...%'driveline_ICE_fail2',...
+          ...%'fail_driveline_springdamper_flex',...
+          ...%'driveline_springdamper_LUT',...
+          ...%'driveline_springdamper_torqueconv',...
+          ...%'driveline_springdamper_LUT2'}; 
 
 
 for model_file_c=models
@@ -122,6 +122,8 @@ for model_file_c=models
 
     simlog = simOut.get('simlog');
 
+    logsout = simOut.get('logsout');
+
     ts = simOut.get(cs.get_param('TimeSaveName'));
     if ts(1)~=0
        ts = [0;ts]; 
@@ -145,7 +147,7 @@ for model_file_c=models
     rehash
 
     %
-    model = Model;
+    eval(['model = ',model_file_c{1},'_DAE;']);
 
     nx = model.nx;
     nz = model.nz;
@@ -199,20 +201,38 @@ for model_file_c=models
     % Control vector
     U = zeros(model.nu,numel(ts));
     for i=1:model.nu
-       data = eval(['simlog.' model.input_names{i}]);
-       values = data.series.values;
-       U(i,:) = values;
+        %         data = eval(['simlog.' model.input_names{i}]);
+        %         values = data.series.values;
+        %         U(i,:) = values;
+        dataset = get(logsout,['In',num2str(i)]);
+        U(i,:) = dataset.Values.Data;
     end
     P = zeros(model.np,1);
+    j=0; para_path_old = ''; para_name_old = '';
     for i=1:model.np
-       P(i) = eval(model.parameter_names{i});
+        %        P(i) = eval(model.parameter_names{i});
+        paraVal = eval([get_param(model.parameter_paths{i},model.parameter_names{i})]);
+        if ~strcmp(model.parameter_paths{i},para_path_old) ||...
+           ~strcmp(model.parameter_names{i},para_name_old)
+            j=i;
+        end
+        if numel(paraVal)==1
+            P(i) = paraVal;
+        else
+            [row,col] = ind2sub(size(paraVal),i-j+1);
+            P(i) = paraVal(row,col);
+        end
+        para_path_old = model.parameter_paths{i};
+        para_name_old = model.parameter_names{i};
     end
     % Outputs
     Y = zeros(model.ny,numel(ts));
     for i=1:model.ny
-       data = eval(['simlog.' model.output_names{i}]);
-       values = data.series.values;
-       Y(i,:) = values;
+        %        data = eval(['simlog.' model.output_names{i}]);
+        %        values = data.series.values;
+        %        Y(i,:) = values;
+        dataset = get(logsout,['Out',num2str(i)]);
+        Y(i,:) = dataset.Values.Data;
     end
     if eval_check
         dae_expl = model.dae_expl;
@@ -348,17 +368,17 @@ for model_file_c=models
     %
     close_system(model_file_path, 0);
 
-    rmdir([model_file_path '_grt_rtw'],'s')
-
-    delete Model.m
+%     rmdir([model_file_path '_grt_rtw'],'s')
+% 
+%     delete Model.m
     delete temp.m
-    if exist(model_file_path,'dir')
-        delete(model_file_path)
-    end
-    if exist([model_file_path '.exe'],'file')
-        delete([model_file_path '.exe'])
-    end
-    rmdir('slprj','s')
-
-    rmpath(path);
+%     if exist(model_file_path,'dir')
+%         delete(model_file_path)
+%     end
+%     if exist([model_file_path '.exe'],'file')
+%         delete([model_file_path '.exe'])
+%     end
+%     rmdir('slprj','s')
+% 
+%     rmpath(path);
 end

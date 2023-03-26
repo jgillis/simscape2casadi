@@ -38,7 +38,7 @@ if len(sys.argv) > 1:
     model_file_path = sys.argv[1]
     unittests = False
 else:
-    model_file_path = 'C:Users\Witali\Documents\Projekte\Matlab\simscape2casadi\models\R2022b\driveline_springdamper'
+    model_file_path = 'C:Users\Witali\Documents\Projekte\Matlab\simscape2casadi\models\R2022b\driveline_springdamper_param'
     unittests = False
 
 
@@ -165,18 +165,23 @@ def to_c(node):
 
 
 def from_constant(n):
-    if n.value.endswith("U"):
-        return n.value[:-1]
-    if n.value.endswith("UL"):
-        return n.value[:-2]
-    elif n.value.endswith("ULL"):
-        return n.value[:-3]
-    else:
-        return n.value
+    try:
+        if n.value.endswith("U"):
+            return n.value[:-1]
+        if n.value.endswith("UL"):
+            return n.value[:-2]
+        elif n.value.endswith("ULL"):
+            return n.value[:-3]
+        else:
+            return n.value
+    except:
+        test = 0
 
 
 class CommonExpressionGenerator(c_generator.CGenerator):
     def visit_Constant(self, n):
+        if 'name' in n:
+            test = 0
         return from_constant(n)
 
 
@@ -421,8 +426,8 @@ def rvalue_to_c(node):
     return generator.visit(node)
 
 
-metadata = {"variable_names": [], "input_names": [], "output_names": [], "parameter_names": [], "mmode_names": [],
-            "n_modes": 0, "s_constant_table": {}, "mTable": {}, "nw": 0}
+metadata = {"variable_names": [], "input_names": [], "output_names": [], "parameter_paths": [], "parameter_names": [],
+            "mmode_names": [], "n_modes": 0, "s_constant_table": {}, "mTable": {}, "nw": 0}
 
 
 class MetaDataVisitor(c_ast.NodeVisitor):
@@ -439,13 +444,16 @@ class MetaDataVisitor(c_ast.NodeVisitor):
             if isinstance(n.init, c_ast.ID):  # Skip when NULL
                 return
             for e in n.init.exprs:
-                name = e.exprs[0].value[1:-1]
-                index = int(from_constant(e.exprs[3]))
-                size1 = int(from_constant(e.exprs[4]))
-                size2 = int(from_constant(e.exprs[5]))
-                if size1 * size2 != 1:
-                    name += "(%d)" % (index + 1)
-                metadata["parameter_names"].append(name)
+                para_name = e.exprs[0].value[14:-1]  # cut RTP_XXXXXXXX_ from string
+                para_path = e.exprs[1].value[1:-1]
+                if e.exprs[2].value != '""':
+                    index = int(from_constant(e.exprs[2]))
+                    size1 = int(from_constant(e.exprs[3]))
+                    size2 = int(from_constant(e.exprs[4]))
+                    if size1 * size2 != 1:
+                        para_name += "(%d)" % (index + 1)
+                metadata["parameter_paths"].append(para_path)
+                metadata["parameter_names"].append(para_name)
         if n.name == "s_major_mode_data":
             if isinstance(n.init, c_ast.ID):  # Skip when NULL
                 return
@@ -692,7 +700,7 @@ else:
     md = MetaDataVisitor()
     md.visit(ast)
 
-    model_file_name = "Model"
+    model_name = model_file_name + "_DAE"  # "Model"
 
     constructor = []
     for k in matrices:
@@ -718,6 +726,7 @@ else:
     map_extra_body = {}
 
     constructor.append("self.nm = " + str(metadata["n_modes"]) + ";")
+    constructor.append("self.parameter_paths = {" + str(metadata["parameter_paths"])[1:-1] + "};")
     constructor.append("self.parameter_names = {" + str(metadata["parameter_names"])[1:-1] + "};")
     constructor.append("self.mmode_names = {" + str(metadata["mmode_names"])[1:-1] + "};")
     constructor.append("self.variable_names = {" + str(metadata["variable_names"])[1:-1] + "};")
@@ -778,14 +787,16 @@ else:
             methods.append("  ret = out.mX;".format(name=k))
         methods.append("end\n")
 
-    with open(model_file_name + ".m", "w") as f:
-        f.write("""classdef {model_file_name} < DAEModel & SimscapeCasadi
+    model_path = basepath + "\\model_classes\\" + model_name + ".m"
+    with open(model_path, "w") as f:
+        f.write("""classdef {model_name} < DAEModel & SimscapeCasadi
       
       properties
         {properties}
         variable_names
         input_names
         output_names
+        parameter_paths
         parameter_names
         mmode_names
         nm
@@ -796,14 +807,14 @@ else:
       end
       
       methods
-        function self = {model_file_name}()
+        function self = {model_name}()
           self = self@DAEModel();
           {constructor}
         end
         {methods}
       end
       
-end""".format(model_file_name=model_file_name,
+end""".format(model_name=model_name,
               properties="\n      ".join("sp_" + k for k in matrices.keys()),
               constructor="\n        ".join(constructor),
               methods="\n      ".join(methods)))

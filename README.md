@@ -2,7 +2,7 @@
 
 
 Prerequisites:
- - [CasADi 3.3](install33.casadi.org); add it to the Matlab path
+ - [CasADi 3.5.5]; run script "downloadCasadi.m"
  - Matlab symbolic toolbox
  - Python
  - Python package `pycparser`: `pip install pycparser` 

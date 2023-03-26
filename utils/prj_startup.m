@@ -5,9 +5,13 @@ function prj_startup()
 %   Run at Startup.
 
 % get the current Matlab version number
-p = currentProject;
+prj = currentProject;
 % Get the project root folder:
-projectRoot = p.RootFolder;
+projectRoot = prj.RootFolder;
+
+% if exist(fullfile(projectRoot, 'casadi'), 'dir')
+%     addPath(prj, fullfile(projectRoot, 'casadi'));
+% end
 
 
 % Set the location of slprj to be the "work" folder of the current project:

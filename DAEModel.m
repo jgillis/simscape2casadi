@@ -51,10 +51,14 @@ classdef DAEModel
     %  del_v0(p)       output of the delay pipeline when the input hasn't
     %                  reached the output yet
     
-    properties
-    end
+%     properties (GetAccess = public , SetAccess = protected)
+%         Model
+%     end
     
     methods
+%         function self = DAEModel(Model)
+%           self.Model = Model;
+%         end
         function self = DAEModel()
         end
         function out = n(self)
@@ -191,7 +195,7 @@ classdef DAEModel
           out = Function('E',{x,u,p,t,q,w,s},{rhs,y},{'x','u','p','t','q','w','s'},{'rhs','y'});
         end
         function [Fun, xr, zr] = Fr(self)
-            model = Model;
+%             model = Model;
 
             nx = self.nx;
             nz = self.nz;
@@ -367,19 +371,19 @@ classdef DAEModel
             Q = sym('Q',[nq,1]);
             W = sym('W',[nw,1]);
             S = sym('S',[ns,1]);  
-            unsafe = arrayfun(@(x) ~isempty(strfind(char(x),'diff')),F);
+            unsafe = arrayfun(@(x) contains(char(x),'diff'),F);
             if any(unsafe)
                 warning('diff ignored')
             end
             F = subs(F,[newVars;vertcat(u_mupad{:});vertcat(p_mupad{:});vertcat(q_mupad{:});vertcat(w_mupad{:});vertcat(s_mupad{:})],[XZ;U;P;Q;W;S]);
             F(unsafe) = NaN;
-            unsafe = arrayfun(@(x) ~isempty(strfind(char(x),'diff')),M);
+            unsafe = arrayfun(@(x) contains(char(x),'diff'),M);
             if any(unsafe)
                 warning('diff ignored')
             end
             M = subs(M,[newVars;vertcat(u_mupad{:});vertcat(p_mupad{:});vertcat(q_mupad{:});vertcat(w_mupad{:});vertcat(s_mupad{:})],[XZ;U;P;Q;W;S]);
             M(unsafe) = NaN;
-            unsafe = arrayfun(@(x) ~isempty(strfind(char(x),'diff')),replaced_variables);
+            unsafe = arrayfun(@(x) contains(char(x),'diff'),replaced_variables);
             if any(unsafe)
                 warning('diff ignored')
             end
